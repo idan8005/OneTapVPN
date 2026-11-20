@@ -52,15 +52,25 @@ class IranVpnProfileParserTest {
         )
         val config = JSONObject(profile.configJson)
         val outbounds = config.getJSONArray("outbounds")
-        val urlTest = outbounds.getJSONObject(3)
+        val urlTest = (0 until outbounds.length()).map { outbounds.getJSONObject(it) }
+            .first { it.optString("tag") == "auto" }
 
         assertEquals(2, profile.candidateCount)
         assertEquals(3, profile.sourceCount)
-        assertEquals("auto", config.getJSONObject("route").getString("final"))
+        assertEquals("proxy", config.getJSONObject("route").getString("final"))
         assertEquals("urltest", urlTest.getString("type"))
         assertEquals(2, urlTest.getJSONArray("outbounds").length())
         assertEquals(IranVpnProfileParser.URL_TEST_ENDPOINT, urlTest.getString("url"))
         assertEquals("30s", urlTest.getString("interval"))
+        val selector = (0 until outbounds.length()).map { outbounds.getJSONObject(it) }
+            .first { it.optString("tag") == "proxy" }
+        assertEquals("selector", selector.getString("type"))
+        assertEquals("auto", selector.getJSONArray("outbounds").getString(0))
+        val inboundTypes = config.getJSONArray("inbounds")
+        assertEquals("tun", inboundTypes.getJSONObject(0).getString("type"))
+        assertEquals("mixed", inboundTypes.getJSONObject(1).getString("type"))
+        val dnsRoute = config.getJSONObject("route").getJSONArray("rules").getJSONObject(0)
+        assertEquals("dns-out", dnsRoute.getString("outbound"))
 
         val controller = config.getJSONObject("experimental").getJSONObject("clash_api")
         assertEquals("127.0.0.1:19090", controller.getString("external_controller"))
