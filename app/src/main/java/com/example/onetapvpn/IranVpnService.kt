@@ -76,7 +76,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         val config = intent?.getStringExtra(EXTRA_CONFIG)
             ?: currentConfig
             ?: run {
-                publishStatus(getString(R.string.iran_profile_missing))
+                publishStatus(IranVpnContract.STATE_ERROR, getString(R.string.iran_profile_missing))
                 stopSelf(startId)
                 return START_NOT_STICKY
             }
@@ -95,7 +95,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 }
                 server.startOrReloadService(config, createOverrideOptions())
             }.onSuccess {
-                publishStatus(getString(R.string.iran_engine_started))
+                publishStatus(IranVpnContract.STATE_CONNECTED, getString(R.string.iran_engine_started))
                 updateForegroundNotification(getString(R.string.iran_engine_started))
             }.onFailure { error ->
                 Log.e(TAG, "Could not start sing-box Iran mode", error)
@@ -158,11 +158,12 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun publishStatus(message: String) {
+    private fun publishStatus(state: String, message: String) {
         sendBroadcast(
-            Intent(ACTION_STATUS)
+            Intent(IranVpnContract.ACTION_STATUS)
                 .setPackage(packageName)
-                .putExtra(EXTRA_STATUS, message)
+                .putExtra(IranVpnContract.EXTRA_STATE, state)
+                .putExtra(IranVpnContract.EXTRA_MESSAGE, message)
         )
     }
 
@@ -193,7 +194,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
     // CommandServerHandler callbacks.
     override fun serviceStop() {
-        publishStatus(getString(R.string.iran_disconnected))
+        publishStatus(IranVpnContract.STATE_DISCONNECTED, getString(R.string.iran_disconnected))
         stopEngine()
         stopSelf()
     }
@@ -205,7 +206,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 commandServer?.startOrReloadService(config, createOverrideOptions())
             }.onFailure { error ->
                 Log.e(TAG, "Could not reload sing-box service", error)
-                publishStatus(getString(R.string.iran_engine_error, error.message ?: "Unknown error"))
+                publishStatus(IranVpnContract.STATE_ERROR, getString(R.string.iran_engine_error, error.message ?: "Unknown error"))
             }
         }
     }
@@ -484,8 +485,6 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val TAG = "RaahatIranVpn"
         const val NOTIFICATION_ID = 2405
         const val NOTIFICATION_CHANNEL = "raahat_iran_vpn"
-        const val ACTION_STATUS = "com.example.onetapvpn.iran.STATUS"
-        const val EXTRA_STATUS = "status"
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
