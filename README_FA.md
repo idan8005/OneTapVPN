@@ -16,7 +16,7 @@
 
 هر Pull Request به شاخهٔ اصلی و هر push روی شاخهٔ اصلی، بررسی Lint، آزمون‌های واحد و ساخت APK آزمایشی را اجرا می‌کند. اگر چهار GitHub Actions Secret امضای ثابت تنظیم شده باشند، Workflow علاوه بر APK، فایل Android App Bundle امضاشده را نیز تولید و اثرانگشت گواهی را بررسی می‌کند.
 
-برای ساخت محلی به JDK 17، Android SDK API 36 و Gradle 8.13 نیاز است.
+برای ساخت محلی به JDK 17، Android SDK API 37 و Gradle 9.5.0 نیاز است.
 
 ## اتصال و محدودیت‌ها
 
@@ -39,7 +39,8 @@
 - Application ID: `com.example.onetapvpn`
 - Version: `1.4.0` (versionCode 5)
 - Minimum Android: Android 7.0 (API 24)
-- Compile/Target SDK: API 36
+- Compile SDK: API 37
+- Target SDK: API 36
 - Java: 17
 - Kotlin: 2.4.21
 - UI: Jetpack Compose + Material 3
