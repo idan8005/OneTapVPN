@@ -17,15 +17,15 @@ class MainActivitySmokeTest {
 
     @Test
     fun mainScreenStartsSimpleAndKeepsProfileToolsOptional() {
-        composeRule.onNodeWithText(R.string.app_name).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.status_disconnected).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.connect).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.advanced_settings).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.import_file).assertDoesNotExist()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.app_name)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.status_disconnected)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.connect)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.advanced_settings)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.import_file)).assertDoesNotExist()
 
         composeRule.onNodeWithText(R.string.advanced_settings).performClick()
         composeRule.onNodeWithText(R.string.import_file).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.paste_clipboard).assertIsDisplayed()
-        composeRule.onNodeWithText(R.string.export_profile).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.paste_clipboard)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.export_profile)).assertIsDisplayed()
     }
 }
