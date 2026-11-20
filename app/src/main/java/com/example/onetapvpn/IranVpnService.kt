@@ -352,12 +352,17 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun testOutboundLatency(secret: String, tag: String): Int {
-        val url = URLEncoder.encode(PING_TEST_URL, "UTF-8")
-        val response = callController(
-            secret,
-            "/proxies/$tag/delay?timeout=$PING_TEST_TIMEOUT_MS&url=$url"
-        )
-        return response.optInt("delay", -1).takeIf { it > 0 } ?: -1
+        INTERNET_TEST_URLS.forEach { testUrl ->
+            val delayMs = runCatching {
+                val url = URLEncoder.encode(testUrl, "UTF-8")
+                callController(
+                    secret,
+                    "/proxies/$tag/delay?timeout=$PING_TEST_TIMEOUT_MS&url=$url"
+                ).optInt("delay", -1)
+            }.getOrDefault(-1)
+            if (delayMs > 0) return delayMs
+        }
+        return -1
     }
 
     private fun selectOutbound(secret: String, tag: String) {
@@ -475,45 +480,45 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         )
     }
 
-    private fun verifyInternetThroughLocalProxy(): Boolean = runCatching {
-        val proxy = Proxy(
-            Proxy.Type.HTTP,
-            InetSocketAddress(LOOPBACK_SPEED_PROXY_HOST, LOOPBACK_SPEED_PROXY_PORT)
+    private fun verifyInternetThroughLocalProxy(): Boolean =
+        verifyInternetWithProxy(
+            Proxy(
+                Proxy.Type.HTTP,
+                InetSocketAddress(LOOPBACK_SPEED_PROXY_HOST, LOOPBACK_SPEED_PROXY_PORT)
+            )
         )
-        val connection = (URL(PING_TEST_URL).openConnection(proxy) as HttpURLConnection).apply {
-            connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
-            readTimeout = INTERNET_VERIFY_TIMEOUT_MS
-            requestMethod = "GET"
-            useCaches = false
-        }
-        try {
-            connection.responseCode in 200..299
-        } finally {
-            connection.disconnect()
-        }
-    }.onFailure {
-        Log.w(TAG, "The selected VPN server did not pass the Internet check.", it)
-    }.getOrDefault(false)
 
-    private fun verifyInternetThroughTun(): Boolean = runCatching {
-        // This request deliberately does not use the local proxy. Since the app
-        // package is included in both full-tunnel and selected-app mode, Android
-        // must route this request through the established TUN interface.
-        val connection = (URL(PING_TEST_URL).openConnection() as HttpURLConnection).apply {
-            connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
-            readTimeout = INTERNET_VERIFY_TIMEOUT_MS
-            requestMethod = "GET"
-            useCaches = false
-            setRequestProperty("Cache-Control", "no-cache")
+    private fun verifyInternetThroughTun(): Boolean =
+        verifyInternetWithProxy(proxy = null)
+
+    private fun verifyInternetWithProxy(proxy: Proxy?): Boolean {
+        for (testUrl in INTERNET_TEST_URLS) {
+            val passed = runCatching {
+                val connection = (
+                    if (proxy == null) URL(testUrl).openConnection()
+                    else URL(testUrl).openConnection(proxy)
+                ) as HttpURLConnection
+                connection.apply {
+                    connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
+                    readTimeout = INTERNET_VERIFY_TIMEOUT_MS
+                    requestMethod = "GET"
+                    useCaches = false
+                    setRequestProperty("Cache-Control", "no-cache")
+                    setRequestProperty("User-Agent", "RaahatVPN/${BuildConfig.VERSION_NAME}")
+                }.let { request ->
+                    try {
+                        request.responseCode in 200..299
+                    } finally {
+                        request.disconnect()
+                    }
+                }
+            }.onFailure {
+                Log.d(TAG, "Internet probe failed for $testUrl", it)
+            }.getOrDefault(false)
+            if (passed) return true
         }
-        try {
-            connection.responseCode in 200..299
-        } finally {
-            connection.disconnect()
-        }
-    }.onFailure {
-        Log.w(TAG, "Internet traffic did not pass through Android's VPN interface.", it)
-    }.getOrDefault(false)
+        return false
+    }
 
     private fun startActiveServerMonitor(secret: String) {
         activeServerMonitorJob?.cancel()
@@ -919,6 +924,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val CONTROLLER_READY_ATTEMPTS = 20
         const val CONTROLLER_READY_INTERVAL_MS = 500L
         const val PING_TEST_URL = "https://cp.cloudflare.com/generate_204"
+        const val FALLBACK_PING_TEST_URL = "https://connectivitycheck.gstatic.com/generate_204"
+        val INTERNET_TEST_URLS = listOf(PING_TEST_URL, FALLBACK_PING_TEST_URL)
         const val PING_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
         const val SPEED_TEST_TIMEOUT_MS = 8_000
