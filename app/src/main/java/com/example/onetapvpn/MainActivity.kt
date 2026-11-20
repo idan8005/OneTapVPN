@@ -52,13 +52,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chooseAppsButton: MaterialButton
     private lateinit var refreshServersButton: MaterialButton
     private lateinit var checkUpdateButton: MaterialButton
-    private lateinit var downloadUpdateButton: MaterialButton
     private lateinit var updateText: TextView
     private lateinit var updateProgress: ProgressBar
     private lateinit var connectProgress: ProgressBar
 
     private var latestState = VpnUiState()
-    private var availableRelease: AppRelease? = null
     private var pendingInstallFile: File? = null
     private var updateJob: Job? = null
     private val appUpdater by lazy { AppUpdater(applicationContext) }
@@ -111,6 +109,8 @@ class MainActivity : AppCompatActivity() {
         val file = pendingInstallFile
         if (file != null && canInstallPackages()) {
             installDownloadedUpdate(file)
+        } else if (file == null) {
+            resumePendingUpdateDownload()
         }
     }
 
@@ -292,14 +292,6 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
         updateContent.addView(updateProgress, matchWrap().apply { topMargin = dp(8) })
-        downloadUpdateButton = MaterialButton(this).apply {
-            id = R.id.download_update_button
-            text = getString(R.string.download_update)
-            isAllCaps = false
-            visibility = View.GONE
-            setOnClickListener { downloadAvailableUpdate() }
-        }
-        updateContent.addView(downloadUpdateButton, matchWrap().apply { topMargin = dp(8) })
         updateCard.addView(updateContent)
         content.addView(updateCard, matchWrap().apply { topMargin = dp(14) })
 
@@ -446,9 +438,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForUpdates() {
         if (updateJob?.isActive == true) return
-        availableRelease = null
-        downloadUpdateButton.visibility = View.GONE
         checkUpdateButton.isEnabled = false
+        updateProgress.visibility = View.GONE
         updateText.text = getString(R.string.update_checking)
 
         updateJob = lifecycleScope.launch {
@@ -456,9 +447,8 @@ class MainActivity : AppCompatActivity() {
                 when (val result = withContext(Dispatchers.IO) { appUpdater.checkForUpdate() }) {
                     UpdateCheck.Current -> updateText.text = getString(R.string.update_current)
                     is UpdateCheck.Available -> {
-                        availableRelease = result.release
                         updateText.text = getString(R.string.update_available, result.release.versionName)
-                        downloadUpdateButton.visibility = View.VISIBLE
+                        downloadAvailableUpdate(result.release)
                     }
                 }
             } catch (error: Exception) {
@@ -466,59 +456,93 @@ class MainActivity : AppCompatActivity() {
                     R.string.update_error,
                     error.localizedMessage ?: getString(R.string.status_error)
                 )
-            } finally {
                 checkUpdateButton.isEnabled = true
+            } finally {
+                if (updateJob?.isActive != true) checkUpdateButton.isEnabled = true
             }
         }
     }
 
-    private fun downloadAvailableUpdate() {
-        val release = availableRelease ?: return
-        if (updateJob?.isActive == true) return
-        downloadUpdateButton.isEnabled = false
+    private fun downloadAvailableUpdate(release: AppRelease) {
+        if (updateJob?.isActive == true) {
+            lifecycleScope.launch {
+                updateJob?.join()
+                downloadAvailableUpdate(release)
+            }
+            return
+        }
+
         updateProgress.visibility = View.VISIBLE
         updateProgress.isIndeterminate = false
         updateProgress.progress = 0
+        checkUpdateButton.isEnabled = false
 
         updateJob = lifecycleScope.launch {
             try {
                 val id = withContext(Dispatchers.IO) { appUpdater.enqueueDownload(release) }
-                while (isActive) {
-                    val snapshot = withContext(Dispatchers.IO) {
-                        appUpdater.downloadSnapshot(id)
-                    }
-                    when (snapshot.status) {
-                        DownloadManager.STATUS_SUCCESSFUL -> {
-                            val apk = withContext(Dispatchers.IO) {
-                                appUpdater.verifiedDownloadedApk(id)
-                            }
-                            appUpdater.clearPendingDownload()
-                            updateProgress.progress = 100
-                            updateText.text = getString(R.string.update_downloaded)
-                            pendingInstallFile = apk
-                            installDownloadedUpdate(apk)
-                            break
-                        }
-                        DownloadManager.STATUS_FAILED -> {
-                            throw IOException("Download failed (code ${snapshot.reason}).")
-                        }
-                        else -> {
-                            updateProgress.progress = snapshot.progressPercent
-                            updateText.text = getString(
-                                R.string.update_download_progress,
-                                snapshot.progressPercent
-                            )
-                            delay(DOWNLOAD_POLL_INTERVAL_MS)
-                        }
-                    }
-                }
+                monitorUpdateDownload(id)
             } catch (error: Exception) {
                 updateText.text = getString(
                     R.string.update_download_error,
                     error.localizedMessage ?: getString(R.string.status_error)
                 )
                 updateProgress.visibility = View.GONE
-                downloadUpdateButton.isEnabled = true
+            } finally {
+                checkUpdateButton.isEnabled = true
+            }
+        }
+    }
+
+    private fun resumePendingUpdateDownload() {
+        if (updateJob?.isActive == true) return
+        val id = appUpdater.pendingDownloadId()
+        if (id < 0L) return
+
+        updateJob = lifecycleScope.launch {
+            updateProgress.visibility = View.VISIBLE
+            updateProgress.isIndeterminate = false
+            try {
+                monitorUpdateDownload(id)
+            } catch (error: Exception) {
+                updateText.text = getString(
+                    R.string.update_download_error,
+                    error.localizedMessage ?: getString(R.string.status_error)
+                )
+                updateProgress.visibility = View.GONE
+                appUpdater.clearPendingDownload()
+            } finally {
+                checkUpdateButton.isEnabled = true
+            }
+        }
+    }
+
+    private suspend fun monitorUpdateDownload(downloadId: Long) {
+        while (isActive) {
+            val snapshot = withContext(Dispatchers.IO) {
+                appUpdater.downloadSnapshot(downloadId)
+            }
+            when (snapshot.status) {
+                DownloadManager.STATUS_SUCCESSFUL -> {
+                    val apk = withContext(Dispatchers.IO) {
+                        appUpdater.verifiedDownloadedApk(downloadId)
+                    }
+                    updateProgress.progress = 100
+                    updateText.text = getString(R.string.update_downloaded)
+                    pendingInstallFile = apk
+                    installDownloadedUpdate(apk)
+                    return
+                }
+                DownloadManager.STATUS_FAILED -> {
+                    throw IOException("Download failed (code ${snapshot.reason}).")
+                }
+                else -> {
+                    updateProgress.progress = snapshot.progressPercent
+                    updateText.text = getString(
+                        R.string.update_download_progress,
+                        snapshot.progressPercent
+                    )
+                    delay(DOWNLOAD_POLL_INTERVAL_MS)
+                }
             }
         }
     }
@@ -553,8 +577,9 @@ class MainActivity : AppCompatActivity() {
                 setDataAndType(contentUri, APK_MIME_TYPE)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            pendingInstallFile = null
             startActivity(installIntent)
+            pendingInstallFile = null
+            appUpdater.clearPendingDownload()
         } catch (error: Exception) {
             updateText.text = getString(
                 R.string.update_install_open_failed,
