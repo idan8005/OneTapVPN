@@ -16,7 +16,7 @@
 2. Open **Raahat VPN**.
 3. Tap **Connect**. On the first connection only, approve Android's VPN permission prompt. Raahat VPN then attempts to obtain and save its WARP profile automatically.
 
-After Android permission has been approved, later connections are started with one tap. No account, API key, manual server selection, or initial WireGuard profile import is required for the automatic WARP attempt.
+The app also connects automatically each time it is opened (not when you return to it or rotate the screen). After Android permission has been approved, you can also connect or disconnect with one tap. No account, API key, manual server selection, or initial WireGuard profile import is required for the automatic WARP attempt.
 
 Manual WireGuard import/export is still available under **Advanced settings (optional)** and is hidden from the normal start screen.
 

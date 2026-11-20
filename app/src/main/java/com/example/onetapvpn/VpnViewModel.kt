@@ -104,7 +104,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val finalState = withContext(workerDispatcher) {
                     val savedProfile = configStore.read()
-                    val profile = savedProfile ?: WarpProvisioner.provision()
+                    val profile = savedProfile ?: WarpProvisioner.provisionWithRetry()
                     val config = WireGuardProfileValidator.parse(profile)
                     if (savedProfile == null) configStore.write(profile)
                     backend.setState(tunnel, Tunnel.State.UP, config)
