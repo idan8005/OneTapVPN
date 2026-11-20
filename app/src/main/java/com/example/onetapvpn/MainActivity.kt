@@ -338,7 +338,14 @@ class MainActivity : AppCompatActivity() {
 
         connectionRequested = true
         uiState = UiState.DISCOVERING
-        connectionMessage = getString(R.string.iran_discovery_loading)
+        val currentSelection = profileStore.selectedProfile()
+        connectionMessage = if (
+            currentSelection != null && !profileStore.isStale() && serverProfiles.isNotEmpty()
+        ) {
+            getString(R.string.server_connecting_to, currentSelection.name)
+        } else {
+            getString(R.string.iran_discovery_loading)
+        }
         render()
 
         discoveryJob?.cancel()
@@ -461,7 +468,19 @@ class MainActivity : AppCompatActivity() {
             UiState.ERROR -> getString(R.string.status_error)
         }
         detailText.text = when (uiState) {
-            UiState.CONNECTED -> getString(R.string.iran_connected)
+            UiState.CONNECTED -> {
+                val activeProfile = pendingProfile
+                if (activeProfile == null || activeProfile.serverHost == "auto") {
+                    getString(R.string.iran_connected_auto, activeProfile?.candidateCount ?: 0)
+                } else {
+                    getString(
+                        R.string.iran_connected_to_server,
+                        activeProfile.name,
+                        activeProfile.serverHost,
+                        activeProfile.serverPort
+                    )
+                }
+            }
             else -> connectionMessage.ifBlank { getString(R.string.connection_help) }
         }
 
@@ -544,6 +563,7 @@ class MainActivity : AppCompatActivity() {
                     serverProfiles[which - 1].selectionKey
                 }
                 profileStore.saveSelection(selectedServerKey)
+                serverNotice = null
                 renderServerSelection()
                 dialog.dismiss()
             }
