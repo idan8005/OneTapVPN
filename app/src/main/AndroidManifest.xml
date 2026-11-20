@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
-        android:label="OneTap VPN"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@drawable/ic_vpn_shield"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_vpn_shield"
         android:supportsRtl="true"
-        android:theme="@style/Theme.OneTapVPN">
+        android:theme="@style/Theme.OneTapVPN"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"
@@ -20,5 +24,15 @@
             </intent-filter>
         </activity>
 
+        <!-- The WireGuard AAR contributes this service and its VPN intent filter. -->
+        <service
+            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            tools:node="merge">
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
+        </service>
     </application>
 </manifest>
