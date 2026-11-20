@@ -208,6 +208,9 @@ class MainActivity : AppCompatActivity() {
             }
         )
         brand.addView(label(getString(R.string.app_tagline), 13f, Color.rgb(156, 174, 201)))
+        brand.addView(
+            label(getString(R.string.app_version, BuildConfig.VERSION_NAME), 11f, Color.rgb(126, 151, 183))
+        )
         header.addView(brand, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
             marginStart = dp(12)
         })
