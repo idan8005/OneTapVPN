@@ -95,7 +95,7 @@
     <string name="server_choose_button">Choose server</string>
     <string name="server_refresh_button">Refresh list</string>
     <string name="server_auto_option">Best server (automatic)</string>
-    <string name="server_auto_selected">Selected: Best server (automatic). sing-box tests the available candidates and chooses one.</string>
+    <string name="server_auto_selected">Selected: Best server (automatic). sing-box tests %1$d available candidates and chooses a responsive one.</string>
     <string name="server_manual_selected">Selected manually: %1$s · %2$s:%3$d</string>
     <string name="server_picker_item">%1$s — %2$s:%3$d</string>
     <string name="server_list_count">List: %1$d servers from %2$d sources</string>
