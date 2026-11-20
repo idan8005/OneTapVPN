@@ -59,11 +59,8 @@ internal class IranServerDiscovery {
 
     private fun fetchFirstAvailable(urls: List<String>): String? {
         for (url in urls) {
-            repeat(2) { attempt ->
-                val body = runCatching { download(url) }.getOrNull()
-                if (!body.isNullOrBlank()) return body
-                if (attempt == 0) Thread.sleep(RETRY_DELAY_MS)
-            }
+            val body = runCatching { download(url) }.getOrNull()
+            if (!body.isNullOrBlank()) return body
         }
         return null
     }
@@ -76,7 +73,7 @@ internal class IranServerDiscovery {
             useCaches = false
             instanceFollowRedirects = true
             setRequestProperty("Accept", "text/plain, */*")
-            setRequestProperty("User-Agent", "RaahatVPN/1.5.0 (Android)")
+            setRequestProperty("User-Agent", "RaahatVPN/${BuildConfig.VERSION_NAME} (Android)")
             setRequestProperty("Cache-Control", "no-cache")
         }
 
@@ -135,11 +132,10 @@ internal class IranServerDiscovery {
     private data class Feed(val mirrors: List<String>)
 
     private companion object {
-        const val CONNECT_TIMEOUT_MS = 10_000
-        const val READ_TIMEOUT_MS = 15_000
+        const val CONNECT_TIMEOUT_MS = 5_000
+        const val READ_TIMEOUT_MS = 8_000
         const val MAX_SOURCE_BYTES = 1_500_000
-        const val RETRY_DELAY_MS = 350L
-        const val MAX_INTERLEAVED_CANDIDATES = 160
+                const val MAX_INTERLEAVED_CANDIDATES = 160
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
