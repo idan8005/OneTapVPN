@@ -39,21 +39,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          BASE_VERSION="$(sed -n 's/^val baseVersionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts | head -n 1)"
-          [[ "$BASE_VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]
+          BASE_VERSION="$(sed -n 's/^val baseVersionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
             LATEST_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)"
             LATEST_VERSION="${LATEST_TAG#v}"
-            if [[ "$LATEST_VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]] && [[ "$(printf '%s\\n' "$BASE_VERSION" "$LATEST_VERSION" | sort -V | tail -n 1)" == "$LATEST_VERSION" ]]; then
+            if [[ "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$(printf '%s\n' "$BASE_VERSION" "$LATEST_VERSION" | sort -V | tail -n 1)" == "$LATEST_VERSION" ]]; then
               IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
               VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
             else
               VERSION="$BASE_VERSION"
             fi
           fi
-          [[ "$VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "RAAHAT_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -213,7 +213,7 @@ jobs:
           else
             VERSION="v${{ needs.build.outputs.version_name }}"
           fi
-          [[ "$VERSION" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish APK and checksum
