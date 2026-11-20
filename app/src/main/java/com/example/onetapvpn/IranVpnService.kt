@@ -1,0 +1,343 @@
+package com.example.onetapvpn
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Intent
+import android.net.VpnService
+import android.os.Build
+import android.os.IBinder
+import android.os.ParcelFileDescriptor
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import io.nekohasekai.libbox.BridgeOptions
+import io.nekohasekai.libbox.BridgeSession
+import io.nekohasekai.libbox.CommandServer
+import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.ConnectionOwner
+import io.nekohasekai.libbox.InterfaceUpdateListener
+import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.LocalDNSTransport
+import io.nekohasekai.libbox.NeighborUpdateListener
+import io.nekohasekai.libbox.NetworkInterfaceIterator
+import io.nekohasekai.libbox.Notification as LibboxNotification
+import io.nekohasekai.libbox.OverrideOptions
+import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.PlatformUser
+import io.nekohasekai.libbox.ShellSession
+import io.nekohasekai.libbox.StringIterator
+import io.nekohasekai.libbox.SystemProxyStatus
+import io.nekohasekai.libbox.TunOptions
+import io.nekohasekai.libbox.WIFIState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+
+/**
+ * Optional sing-box engine for user-supplied VLESS + REALITY profiles.
+ * It is deliberately separate from the existing OpenVPN/VPN Gate engine.
+ */
+internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHandler {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var commandServer: CommandServer? = null
+    private var tunFileDescriptor: ParcelFileDescriptor? = null
+    private var currentConfig: String? = null
+    private var selectedPackages: List<String> = emptyList()
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(
+            NOTIFICATION_ID,
+            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText(getString(R.string.iran_engine_starting))
+                .setOngoing(true)
+                .build()
+        )
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val config = intent?.getStringExtra(EXTRA_CONFIG)
+            ?: currentConfig
+            ?: run {
+                publishStatus(getString(R.string.iran_profile_missing))
+                stopSelf(startId)
+                return START_NOT_STICKY
+            }
+        val packages = intent?.getStringArrayListExtra(EXTRA_PACKAGES).orEmpty()
+        currentConfig = config
+        selectedPackages = packages.distinct().filter { it.isNotBlank() }
+
+        serviceScope.launch {
+            runCatching {
+                ensureLibboxSetup()
+                val server = commandServer ?: CommandServer(this@IranVpnService, this@IranVpnService).also {
+                    it.start()
+                    commandServer = it
+                }
+                server.startOrReloadService(config, createOverrideOptions())
+            }.onSuccess {
+                publishStatus(getString(R.string.iran_engine_started))
+                updateForegroundNotification(getString(R.string.iran_engine_started))
+            }.onFailure { error ->
+                Log.e(TAG, "Could not start sing-box Iran mode", error)
+                publishStatus(
+                    getString(
+                        R.string.iran_engine_error,
+                        error.localizedMessage ?: error.javaClass.simpleName
+                    )
+                )
+                stopSelf(startId)
+            }
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
+
+    override fun onRevoke() {
+        stopEngine()
+        super.onRevoke()
+    }
+
+    override fun onDestroy() {
+        stopEngine()
+        serviceScope.cancel()
+        super.onDestroy()
+    }
+
+    private fun ensureLibboxSetup() {
+        if (isLibboxReady) return
+        val workingDirectory = getExternalFilesDir(null) ?: filesDir
+        Libbox.setup(
+            io.nekohasekai.libbox.SetupOptions().apply {
+                basePath = filesDir.absolutePath
+                workingPath = workingDirectory.absolutePath
+                tempPath = cacheDir.absolutePath
+                logMaxLines = 3000
+                debug = BuildConfig.DEBUG
+                appVersion = BuildConfig.VERSION_CODE.toString()
+                appMarketingVersion = BuildConfig.VERSION_NAME
+            }
+        )
+        isLibboxReady = true
+    }
+
+    private fun createOverrideOptions(): OverrideOptions = OverrideOptions().apply {
+        if (selectedPackages.isNotEmpty()) {
+            includePackage = StringArray((selectedPackages + packageName).distinct().iterator())
+        }
+    }
+
+    private fun stopEngine() {
+        runCatching { tunFileDescriptor?.close() }
+        tunFileDescriptor = null
+        runCatching { commandServer?.closeService() }
+        runCatching { commandServer?.close() }
+        commandServer = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun publishStatus(message: String) {
+        sendBroadcast(
+            Intent(ACTION_STATUS)
+                .setPackage(packageName)
+                .putExtra(EXTRA_STATUS, message)
+        )
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL,
+                    getString(R.string.iran_notification_channel),
+                    NotificationManager.IMPORTANCE_LOW
+                )
+            )
+        }
+    }
+
+    private fun updateForegroundNotification(message: String) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(
+            NOTIFICATION_ID,
+            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText(message)
+                .setOngoing(true)
+                .build()
+        )
+    }
+
+    // CommandServerHandler callbacks.
+    override fun serviceStop() {
+        publishStatus(getString(R.string.iran_disconnected))
+        stopSelf()
+    }
+
+    override fun serviceReload() {
+        val config = currentConfig ?: return
+        serviceScope.launch {
+            runCatching {
+                commandServer?.startOrReloadService(config, createOverrideOptions())
+            }.onFailure { error ->
+                Log.e(TAG, "Could not reload sing-box service", error)
+                publishStatus(getString(R.string.iran_engine_error, error.message ?: "Unknown error"))
+            }
+        }
+    }
+
+    override fun getSystemProxyStatus(): SystemProxyStatus = SystemProxyStatus().apply {
+        available = false
+        enabled = false
+    }
+
+    override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
+    override fun triggerNativeCrash() = Unit
+    override fun writeDebugMessage(message: String?) {
+        Log.d(TAG, message.orEmpty())
+    }
+    override fun connectSSHAgent(): Int = -1
+
+    // PlatformInterface methods required by libbox.
+    override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
+    override fun autoDetectInterfaceControl(fd: Int) {
+        if (!protect(fd)) Log.w(TAG, "Could not protect an outbound socket from the VPN tunnel.")
+    }
+
+    override fun openTun(options: TunOptions): Int {
+        if (VpnService.prepare(this) != null) error("Android VPN permission has not been granted.")
+        val builder = Builder()
+            .setSession(getString(R.string.iran_vpn_session))
+            .setMtu(options.mtu)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
+
+        val ipv4 = options.inet4Address
+        while (ipv4.hasNext()) {
+            val address = ipv4.next()
+            builder.addAddress(address.address(), address.prefix())
+        }
+        val ipv6 = options.inet6Address
+        while (ipv6.hasNext()) {
+            val address = ipv6.next()
+            builder.addAddress(address.address(), address.prefix())
+        }
+
+        if (options.autoRoute) {
+            val dns = options.dnsServerAddress
+            while (dns.hasNext()) builder.addDnsServer(dns.next())
+            builder.addRoute("0.0.0.0", 0)
+            builder.addRoute("::", 0)
+
+            val include = options.includePackage
+            while (include.hasNext()) {
+                val app = include.next()
+                runCatching { builder.addAllowedApplication(app) }
+                    .onFailure { Log.w(TAG, "Could not allow application $app", it) }
+            }
+            val exclude = options.excludePackage
+            while (exclude.hasNext()) {
+                val app = exclude.next()
+                runCatching { builder.addDisallowedApplication(app) }
+                    .onFailure { Log.w(TAG, "Could not exclude application $app", it) }
+            }
+        }
+
+        val descriptor = builder.establish()
+            ?: error("Android could not establish the VPN interface.")
+        runCatching { tunFileDescriptor?.close() }
+        tunFileDescriptor = descriptor
+        return descriptor.fd
+    }
+
+    override fun findConnectionOwner(
+        ipProtocol: Int,
+        sourceAddress: String,
+        sourcePort: Int,
+        destinationAddress: String,
+        destinationPort: Int
+    ): ConnectionOwner = throw UnsupportedOperationException("Connection owner lookup is not enabled.")
+
+    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
+
+    override fun getInterfaces(): NetworkInterfaceIterator = object : NetworkInterfaceIterator {
+        override fun hasNext(): Boolean = false
+        override fun next(): io.nekohasekai.libbox.NetworkInterface =
+            throw NoSuchElementException("No Android network interface snapshot is available.")
+    }
+
+    override fun underNetworkExtension(): Boolean = false
+    override fun includeAllNetworks(): Boolean = false
+    override fun clearDNSCache() = Unit
+    override fun readWIFIState(): WIFIState? = null
+    override fun localDNSTransport(): LocalDNSTransport? = null
+    override fun startNeighborMonitor(listener: NeighborUpdateListener?) = Unit
+    override fun closeNeighborMonitor(listener: NeighborUpdateListener?) = Unit
+    override fun usePlatformShell(): Boolean = false
+    override fun checkPlatformShell() = Unit
+
+    override fun openShellSession(
+        user: PlatformUser?,
+        command: String?,
+        environ: StringIterator?,
+        term: String?,
+        rows: Int,
+        cols: Int
+    ): ShellSession = throw UnsupportedOperationException("Platform shell is not available.")
+
+    override fun readSystemSSHHostKey(): String =
+        throw UnsupportedOperationException("System SSH host keys are not available.")
+    override fun lookupSFTPServer(): String = ""
+    override fun tailscaleHostname(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
+    override fun usePlatformBridge(): Boolean = false
+    override fun createBridge(options: BridgeOptions?): BridgeSession =
+        throw UnsupportedOperationException("Platform bridge is not available.")
+    override fun lookupUser(username: String?): PlatformUser =
+        throw UnsupportedOperationException("Platform user lookup is not available.")
+    override fun registerMyInterface(name: String?) = Unit
+
+    override fun sendNotification(notification: LibboxNotification) {
+        Log.i(TAG, notification.body.orEmpty())
+    }
+
+    override fun cancelNotification(identifier: String, typeID: Int) = Unit
+
+    private class StringArray(private val iterator: Iterator<String>) : StringIterator {
+        override fun len(): Int = 0
+        override fun hasNext(): Boolean = iterator.hasNext()
+        override fun next(): String = iterator.next()
+    }
+
+    private companion object {
+        const val TAG = "RaahatIranVpn"
+        const val NOTIFICATION_ID = 2405
+        const val NOTIFICATION_CHANNEL = "raahat_iran_vpn"
+        const val ACTION_STATUS = "com.example.onetapvpn.iran.STATUS"
+        const val EXTRA_STATUS = "status"
+        const val EXTRA_CONFIG = "config_json"
+        const val EXTRA_PACKAGES = "selected_packages"
+        const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
+
+        @Volatile
+        private var isLibboxReady = false
+
+        fun startIntent(
+            context: android.content.Context,
+            profile: IranVpnProfile,
+            selectedPackages: Set<String>
+        ): Intent = Intent(context, IranVpnService::class.java).apply {
+            putExtra(EXTRA_CONFIG, profile.configJson)
+            putStringArrayListExtra(EXTRA_PACKAGES, ArrayList(selectedPackages))
+        }
+
+        fun stopIntent(context: android.content.Context): Intent =
+            Intent(context, IranVpnService::class.java).setAction(ACTION_STOP)
+    }
+}
