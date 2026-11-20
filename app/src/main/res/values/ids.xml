@@ -8,5 +8,4 @@
     <item name="selected_apps_mode_button" type="id" />
     <item name="choose_apps_button" type="id" />
     <item name="check_updates_button" type="id" />
-    <item name="download_update_button" type="id" />
 </resources>
