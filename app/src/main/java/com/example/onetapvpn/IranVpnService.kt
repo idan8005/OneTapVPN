@@ -170,7 +170,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     )
                     try {
                         selectOutbound(secret, candidate.tag)
-                        kotlinx.coroutines.delay(300)
+                        kotlinx.coroutines.delay(100)
 
                         if (!verifyInternetThroughLocalProxy()) {
                             lastFailure = getString(R.string.iran_proxy_test_failed)
@@ -1291,20 +1291,19 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         // a long list of unreachable test sites for every candidate.
         val PING_TEST_URLS = listOf(
             PING_TEST_URL,
-            "https://www.msftconnecttest.com/connecttest.txt",
-            "https://detectportal.firefox.com/success.txt"
+            "https://www.msftconnecttest.com/connecttest.txt"
         )
-        const val PING_TEST_TIMEOUT_MS = 1_400
+        const val PING_TEST_TIMEOUT_MS = 1_200
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
         const val SPEED_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_MAX_BYTES = 128L * 1024L
         const val SPEED_TEST_MIN_BYTES = 32L * 1024L
-        const val INTERNET_VERIFY_TIMEOUT_MS = 5_000
-        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 15
+        const val INTERNET_VERIFY_TIMEOUT_MS = 2_500
+        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 8
         const val MAX_TUN_FAILURES_BEFORE_CLASSIFY = 3
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
-        const val MAX_PARALLEL_PING_TESTS = 10
+        const val MAX_PARALLEL_PING_TESTS = 20
         const val MAX_PARALLEL_STABILITY_PROBES = 2
         const val MAX_STABILITY_PROBE_CANDIDATES = 3
         const val STABILITY_REPEAT_PROBES = 1
