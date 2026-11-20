@@ -35,16 +35,20 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
+import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
+import java.net.URL
 import java.util.Collections
+import org.json.JSONObject
 import java.net.NetworkInterface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 /**
  * Optional sing-box engine for user-supplied VLESS + REALITY profiles.
@@ -54,6 +58,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val connectivity by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
     private var commandServer: CommandServer? = null
+    private var activeServerMonitorJob: kotlinx.coroutines.Job? = null
     private var tunFileDescriptor: ParcelFileDescriptor? = null
     private var currentConfig: String? = null
     private var selectedPackages: List<String> = emptyList()
@@ -98,6 +103,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             }.onSuccess {
                 publishStatus(IranVpnContract.STATE_CONNECTED, getString(R.string.iran_engine_started))
                 updateForegroundNotification(getString(R.string.iran_engine_started))
+                startActiveServerMonitor(config)
             }.onFailure { error ->
                 Log.e(TAG, "Could not start sing-box Iran mode", error)
                 publishStatus(
@@ -151,6 +157,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun stopEngine() {
+        activeServerMonitorJob?.cancel()
+        activeServerMonitorJob = null
         closeDefaultNetworkMonitor()
         runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
@@ -160,13 +168,78 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun publishStatus(state: String, message: String) {
-        sendBroadcast(
-            Intent(IranVpnContract.ACTION_STATUS)
-                .setPackage(packageName)
-                .putExtra(IranVpnContract.EXTRA_STATE, state)
-                .putExtra(IranVpnContract.EXTRA_MESSAGE, message)
-        )
+    private fun publishStatus(
+        state: String,
+        message: String,
+        activeOutboundTag: String? = null
+    ) {
+        val intent = Intent(IranVpnContract.ACTION_STATUS)
+            .setPackage(packageName)
+            .putExtra(IranVpnContract.EXTRA_STATE, state)
+            .putExtra(IranVpnContract.EXTRA_MESSAGE, message)
+        if (!activeOutboundTag.isNullOrBlank()) {
+            intent.putExtra(IranVpnContract.EXTRA_ACTIVE_TAG, activeOutboundTag)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun startActiveServerMonitor(config: String) {
+        activeServerMonitorJob?.cancel()
+        val secret = runCatching {
+            JSONObject(config)
+                .getJSONObject("experimental")
+                .getJSONObject("clash_api")
+                .getString("secret")
+        }.getOrNull() ?: return
+
+        activeServerMonitorJob = serviceScope.launch {
+            var lastTag: String? = null
+            repeat(ACTIVE_SERVER_INITIAL_POLLS) {
+                val tag = readActiveOutboundTag(secret)
+                if (!tag.isNullOrBlank() && tag != lastTag) {
+                    lastTag = tag
+                    publishStatus(
+                        IranVpnContract.STATE_CONNECTED,
+                        getString(R.string.iran_active_server_updated),
+                        tag
+                    )
+                }
+                kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
+            }
+            while (isActive) {
+                kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
+                val tag = readActiveOutboundTag(secret)
+                if (!tag.isNullOrBlank() && tag != lastTag) {
+                    lastTag = tag
+                    publishStatus(
+                        IranVpnContract.STATE_CONNECTED,
+                        getString(R.string.iran_active_server_updated),
+                        tag
+                    )
+                }
+            }
+        }
+    }
+
+    private fun readActiveOutboundTag(secret: String): String? {
+        val connection = (URL(ACTIVE_SERVER_API_URL).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = ACTIVE_SERVER_API_TIMEOUT_MS
+            readTimeout = ACTIVE_SERVER_API_TIMEOUT_MS
+            useCaches = false
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer $secret")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return null
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            JSONObject(response).optString("now").takeIf { it.isNotBlank() && it != "null" }
+        } catch (error: Exception) {
+            Log.d(TAG, "Automatic server selection is not available yet", error)
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun notification(message: String) =
@@ -501,6 +574,10 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
+        const val ACTIVE_SERVER_API_URL = "http://127.0.0.1:19090/proxies/auto"
+        const val ACTIVE_SERVER_API_TIMEOUT_MS = 1_000
+        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 2_000L
+        const val ACTIVE_SERVER_INITIAL_POLLS = 20
 
         @Volatile
         private var isLibboxReady = false
