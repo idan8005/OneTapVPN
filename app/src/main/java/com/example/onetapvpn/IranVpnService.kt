@@ -392,9 +392,6 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             val boxInterface = LibboxNetworkInterface().apply {
                 this.name = name
                 dnsServer = StringArray(linkProperties.dnsServers.mapNotNull { it.hostAddress }.iterator())
-                dnsSearchDomain = StringArray(
-                    linkProperties.domains.orEmpty().split(' ').filter { it.isNotBlank() }.iterator()
-                )
                 gateway = StringArray(
                     linkProperties.routes
                         .filter { it.destination.prefixLength == 0 }
