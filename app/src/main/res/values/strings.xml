@@ -110,4 +110,5 @@
 
     <string name="iran_connected_auto">Connected in automatic mode. The VPN engine selects a responsive server from %1$d candidates.</string>
     <string name="iran_connected_to_server">Connected to %1$s · %2$s:%3$d</string>
+    <string name="iran_connected_auto_pending">Connected in automatic mode. Waiting for the engine to report the selected server (%1$d candidates available)…</string>
 </resources>
