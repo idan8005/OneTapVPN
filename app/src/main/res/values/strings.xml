@@ -21,7 +21,6 @@
     <string name="reason_server_dropped">Connection dropped; trying another server</string>
     <string name="reason_server_invalid">Server profile could not start; trying another</string>
     <string name="server_ready_count">Found %1$d free candidates. Best-ranked server selected.</string>
-    <string name="server_refreshing">Refreshing free server list…</string>
     <string name="server_load_failed">Could not load the free server list: %1$s</string>
     <string name="no_server_connected">No free server connected. Refresh the list and try again.</string>
     <string name="vpn_disconnected">VPN disconnected.</string>
