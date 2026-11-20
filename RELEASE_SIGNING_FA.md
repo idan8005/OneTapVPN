@@ -1,4 +1,4 @@
-# راه‌اندازی امضای ثابت Release برای OneTapVPN
+# راه‌اندازی امضای ثابت Release برای راحت وی‌پی‌ان
 
 ## فایل امضا
 
@@ -17,7 +17,7 @@
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-پس از ذخیرهٔ چهار Secret، به Actions → Build, test and sign OneTapVPN بروید و Run workflow را اجرا کنید. در صورت موفقیت، Artifact با نام `OneTapVPN-Release-1.2.0` منتشر می‌شود.
+پس از ذخیرهٔ چهار Secret، به Actions → Build, test and sign Raahat VPN بروید و Run workflow را اجرا کنید. در صورت موفقیت، Artifact با نام `RaahatVPN-Release-1.3.0` منتشر می‌شود.
 
 ## نگهداری کلید
 
