@@ -108,4 +108,7 @@
     <string name="server_refresh_success_toast">%1$d compatible servers added to the list.</string>
     <string name="server_refresh_failed">Could not refresh servers: %1$s</string>
     <string name="change_server_disconnect_first">Disconnect the VPN before changing or refreshing servers.</string>
+
+    <string name="iran_connected_auto">Connected in automatic mode. The VPN engine selects a responsive server from %1$d candidates.</string>
+    <string name="iran_connected_to_server">Connected to %1$s · %2$s:%3$d</string>
 </resources>
