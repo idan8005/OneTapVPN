@@ -13,11 +13,9 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.text.InputType
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -62,8 +60,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var updateProgress: ProgressBar
     private lateinit var connectProgress: ProgressBar
     private lateinit var iranProfileStatusText: TextView
-    private lateinit var connectIranButton: MaterialButton
-    private lateinit var disconnectIranButton: MaterialButton
+    private lateinit var refreshIranServersButton: MaterialButton
+    private lateinit var connectVpnGateButton: MaterialButton
 
     private var latestState = VpnUiState()
     private var pendingInstallFile: File? = null
@@ -71,6 +69,9 @@ class MainActivity : AppCompatActivity() {
     private val appUpdater by lazy { AppUpdater(applicationContext) }
     private val iranVpnManager by lazy { IranVpnManager(applicationContext) }
     private val iranProfileStore by lazy { IranVpnProfileStore(applicationContext) }
+    private val iranDiscovery by lazy { IranServerDiscovery() }
+    private var iranDiscoveryJob: Job? = null
+    private var iranConnectAfterDiscovery = false
     private var iranReceiverRegistered = false
     private var iranModeActive = false
 
@@ -139,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         registerIranStatusReceiver()
         renderSavedIranProfile()
         OpenVpnStatus.addStateListener(vpnStateListener)
+        discoverIranServers()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -160,6 +162,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         OpenVpnStatus.removeStateListener(vpnStateListener)
         if (iranReceiverRegistered) unregisterReceiver(iranStatusReceiver)
+        iranDiscoveryJob?.cancel()
         updateJob?.cancel()
         super.onDestroy()
     }
@@ -258,21 +261,14 @@ class MainActivity : AppCompatActivity() {
         )
         iranProfileStatusText = label(getString(R.string.iran_profile_empty), 13f, Color.rgb(174, 192, 218))
         iranContent.addView(iranProfileStatusText, matchWrap().apply { topMargin = dp(10) })
-        val importIranProfileButton = outlinedButton(getString(R.string.iran_import_profile)) {
-            openIranProfileDialog()
+        refreshIranServersButton = outlinedButton(getString(R.string.iran_refresh_servers)) {
+            discoverIranServers(forceRefresh = true)
         }
-        iranContent.addView(importIranProfileButton, matchWrap().apply { topMargin = dp(10) })
-        connectIranButton = outlinedButton(getString(R.string.iran_connect)) {
-            requestIranConnection()
+        iranContent.addView(refreshIranServersButton, matchWrap().apply { topMargin = dp(10) })
+        connectVpnGateButton = outlinedButton(getString(R.string.iran_use_vpngate)) {
+            onVpnGateButtonPressed()
         }
-        iranContent.addView(connectIranButton, matchWrap().apply { topMargin = dp(8) })
-        disconnectIranButton = outlinedButton(getString(R.string.iran_disconnect)) {
-            iranVpnManager.stop()
-            iranModeActive = false
-            iranProfileStatusText.text = getString(R.string.iran_disconnected)
-            render(latestState)
-        }
-        iranContent.addView(disconnectIranButton, matchWrap().apply { topMargin = dp(8) })
+        iranContent.addView(connectVpnGateButton, matchWrap().apply { topMargin = dp(8) })
         iranCard.addView(iranContent)
         content.addView(iranCard, matchWrap().apply { topMargin = dp(14) })
 
@@ -400,61 +396,101 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderSavedIranProfile() {
         val profile = iranProfileStore.read()
-        if (profile == null) {
-            iranProfileStatusText.text = getString(R.string.iran_profile_empty)
-            connectIranButton.isEnabled = false
+        iranProfileStatusText.text = if (profile == null) {
+            getString(R.string.iran_profile_empty)
         } else {
-            iranProfileStatusText.text = getString(
+            getString(
                 R.string.iran_profile_loaded,
-                profile.serverHost,
-                profile.serverPort
+                profile.candidateCount,
+                profile.sourceCount
             )
-            connectIranButton.isEnabled = true
         }
     }
 
-    private fun openIranProfileDialog() {
-        val input = EditText(this).apply {
-            hint = getString(R.string.iran_profile_input_hint)
-            inputType = InputType.TYPE_CLASS_TEXT or
-                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            minLines = 4
-            maxLines = 7
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            setTextDirection(View.TEXT_DIRECTION_LTR)
+    private fun discoverIranServers(forceRefresh: Boolean = false, connectAfter: Boolean = false) {
+        if (iranDiscoveryJob?.isActive == true) {
+            iranConnectAfterDiscovery = iranConnectAfterDiscovery || connectAfter
+            return
         }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.iran_import_profile)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                try {
-                    val profile = IranVpnProfileParser.parse(input.text.toString())
-                    iranProfileStore.save(profile)
-                    renderSavedIranProfile()
-                } catch (error: Exception) {
-                    iranProfileStatusText.text = getString(
-                        R.string.iran_profile_invalid,
+
+        val cached = iranProfileStore.read()
+        if (!forceRefresh && cached != null && !iranProfileStore.isStale()) {
+            renderSavedIranProfile()
+            if (connectAfter) requestIranVpnPermission()
+            return
+        }
+
+        iranConnectAfterDiscovery = connectAfter
+        iranProfileStatusText.text = getString(R.string.iran_discovery_loading)
+        refreshIranServersButton.isEnabled = false
+
+        iranDiscoveryJob = lifecycleScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { iranDiscovery.discover() }
+                iranProfileStore.save(result.profile)
+                iranProfileStatusText.text = getString(
+                    R.string.iran_discovered_count,
+                    result.profile.candidateCount,
+                    result.sourceCount
+                )
+                val shouldConnect = iranConnectAfterDiscovery
+                iranConnectAfterDiscovery = false
+                if (shouldConnect) requestIranVpnPermission()
+            } catch (error: Exception) {
+                val cachedProfile = iranProfileStore.read()
+                iranProfileStatusText.text = if (cachedProfile != null) {
+                    getString(
+                        R.string.iran_discovery_fallback,
+                        cachedProfile.candidateCount,
+                        error.localizedMessage ?: getString(R.string.status_error)
+                    )
+                } else {
+                    getString(
+                        R.string.iran_discovery_failed,
                         error.localizedMessage ?: getString(R.string.status_error)
                     )
                 }
+                if (iranConnectAfterDiscovery && cachedProfile != null) {
+                    iranConnectAfterDiscovery = false
+                    requestIranVpnPermission()
+                } else {
+                    iranConnectAfterDiscovery = false
+                }
+            } finally {
+                refreshIranServersButton.isEnabled = true
+                iranDiscoveryJob = null
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
     }
 
     private fun requestIranConnection() {
-        if (iranProfileStore.read() == null) {
-            Toast.makeText(this, R.string.iran_profile_missing, Toast.LENGTH_LONG).show()
-            return
+        val cached = iranProfileStore.read()
+        if (cached == null || iranProfileStore.isStale()) {
+            discoverIranServers(forceRefresh = true, connectAfter = true)
+        } else {
+            requestIranVpnPermission()
         }
+    }
+
+    private fun requestIranVpnPermission() {
         val permissionIntent = VpnService.prepare(this)
         if (permissionIntent == null) {
             startIranTunnel()
         } else {
             iranVpnPermissionLauncher.launch(permissionIntent)
+        }
+    }
+
+    private fun onVpnGateButtonPressed() {
+        if (iranModeActive) {
+            iranVpnManager.stop()
+            iranModeActive = false
+        }
+        val permissionIntent = VpnService.prepare(this)
+        if (permissionIntent == null) {
+            viewModel.connect()
+        } else {
+            vpnPermissionLauncher.launch(permissionIntent)
         }
     }
 
@@ -503,14 +539,7 @@ class MainActivity : AppCompatActivity() {
         when (latestState.status) {
             VpnStatus.CONNECTED -> viewModel.disconnect()
             VpnStatus.CONNECTING -> Unit
-            else -> {
-                val permissionIntent = VpnService.prepare(this)
-                if (permissionIntent == null) {
-                    viewModel.connect()
-                } else {
-                    vpnPermissionLauncher.launch(permissionIntent)
-                }
-            }
+            else -> requestIranConnection()
         }
     }
 
