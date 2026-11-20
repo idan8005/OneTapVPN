@@ -2,9 +2,11 @@
 <resources>
     <item name="connection_status" type="id" />
     <item name="brand_title" type="id" />
-    <item name="advanced_settings_button" type="id" />
     <item name="connect_button" type="id" />
-    <item name="import_profile_button" type="id" />
-    <item name="paste_profile_button" type="id" />
-    <item name="export_profile_button" type="id" />
+    <item name="refresh_servers_button" type="id" />
+    <item name="full_tunnel_button" type="id" />
+    <item name="selected_apps_mode_button" type="id" />
+    <item name="choose_apps_button" type="id" />
+    <item name="check_updates_button" type="id" />
+    <item name="download_update_button" type="id" />
 </resources>
