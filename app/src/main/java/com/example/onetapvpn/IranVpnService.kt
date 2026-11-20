@@ -68,6 +68,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            publishStatus(IranVpnContract.STATE_DISCONNECTED, getString(R.string.iran_disconnected))
             stopEngine()
             stopSelf(startId)
             return START_NOT_STICKY
