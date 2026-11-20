@@ -504,6 +504,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startIranTunnel() {
+        if (latestState.routing.mode == RoutingMode.SELECTED_APPS &&
+            latestState.routing.selectedPackages.isEmpty()
+        ) {
+            Toast.makeText(this, R.string.choose_app_before_connect, Toast.LENGTH_LONG).show()
+            return
+        }
+
         val profile = iranProfileStore.read()
         if (profile == null) {
             iranProfileStatusText.text = getString(R.string.iran_profile_missing)
