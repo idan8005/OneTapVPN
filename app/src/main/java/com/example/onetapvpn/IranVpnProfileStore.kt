@@ -1,7 +1,6 @@
 package com.example.onetapvpn
 
 import android.content.Context
-import android.os.SystemClock
 
 internal class IranVpnProfileStore(context: Context) {
     private val preferences = context.applicationContext
