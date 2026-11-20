@@ -151,7 +151,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     rankedTags.forEach { tag -> if (tag !in this) add(tag) }
                 }.take(MAX_CONNECT_CANDIDATE_ATTEMPTS)
 
-                var chosen: ServerHealthResult? = null
+                var verifiedCandidate: ServerHealthResult? = null
                 var lastFailure = getString(R.string.iran_internet_test_failed)
                 var attemptedCandidates = 0
 
@@ -180,7 +180,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                             Log.w(TAG, "Candidate ${candidate.tag} failed the Android TUN Internet check.")
                             continue
                         }
-                        chosen = candidate
+                        verifiedCandidate = candidate
                         break
                     } catch (candidateError: Exception) {
                         lastFailure = candidateError.localizedMessage
@@ -189,7 +189,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     }
                 }
 
-                val verifiedServer = chosen ?: error(
+                val verifiedServer = verifiedCandidate ?: error(
                     getString(
                         R.string.iran_all_candidates_failed,
                         attemptedCandidates,
