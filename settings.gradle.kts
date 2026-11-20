@@ -15,5 +15,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "OneTapVPN"
-include(":app", ":vpnLib")
-project(":vpnLib").projectDir = file("third_party/OpenGateVPN/vpnLib")
+include(":app")
