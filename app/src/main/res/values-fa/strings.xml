@@ -125,4 +125,5 @@
     <string name="server_health_not_tested">هنوز آزمایش نشده</string>
     <string name="server_picker_item_with_health">%1$s — %2$s:%3$d · %4$s</string>
     <string name="server_health_count">%1$d از %2$d سرور به آزمایش پینگ پاسخ دادند</string>
+    <string name="iran_tun_internet_test_failed">آزمایش اینترنت از مسیر تونل اندروید ناموفق بود؛ ترافیک اینترنت از VPN عبور نمی‌کند.</string>
 </resources>
