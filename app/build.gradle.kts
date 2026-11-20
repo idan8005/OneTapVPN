@@ -3,6 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val baseVersionName = "1.6.4"
+val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+val resolvedVersionName = ciBuildNumber?.let { "$baseVersionName.$it" } ?: baseVersionName
+val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(13) ?: 13
+
 val releaseStoreFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseStorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
@@ -22,8 +27,8 @@ android {
         applicationId = "com.example.onetapvpn"
         minSdk = 24
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.6.4"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
