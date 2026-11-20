@@ -19,7 +19,7 @@ val releaseSigningConfigured =
 
 android {
     namespace = "com.example.onetapvpn"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.onetapvpn"
