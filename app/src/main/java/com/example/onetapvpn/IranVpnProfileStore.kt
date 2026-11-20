@@ -131,6 +131,15 @@ internal class IranVpnProfileStore(context: Context) {
         return savedAt <= 0L || System.currentTimeMillis() - savedAt >= maxAgeMillis
     }
 
+    fun markServerHealthChecked() {
+        preferences.edit().putLong(KEY_HEALTH_CHECKED_AT, System.currentTimeMillis()).apply()
+    }
+
+    fun isServerHealthStale(maxAgeMillis: Long = DEFAULT_HEALTH_MAX_AGE_MS): Boolean {
+        val checkedAt = preferences.getLong(KEY_HEALTH_CHECKED_AT, 0L)
+        return checkedAt <= 0L || System.currentTimeMillis() - checkedAt >= maxAgeMillis
+    }
+
     fun clear() {
         preferences.edit().clear().apply()
     }
@@ -147,7 +156,9 @@ internal class IranVpnProfileStore(context: Context) {
         private const val KEY_SAVED_AT = "saved_at"
         private const val KEY_SERVERS = "servers"
         private const val KEY_SELECTED_SERVER = "selected_server"
+        private const val KEY_HEALTH_CHECKED_AT = "health_checked_at"
         private const val DEFAULT_MAX_AGE_MS = 20 * 60 * 1000L
+        private const val DEFAULT_HEALTH_MAX_AGE_MS = 10 * 60 * 1000L
     }
 }
 
