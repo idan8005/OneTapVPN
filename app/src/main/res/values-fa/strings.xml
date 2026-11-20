@@ -55,4 +55,9 @@
     <string name="security_notice_title">هشدار درباره VPNهای داوطلبانه</string>
     <string name="security_notice">سرورها متعلق به داوطلبان هستند، نه راحت وی‌پی‌ان. سرعت و دسترس‌پذیری آن‌ها ممکن است تغییر کند. اطلاعات حساس و گذرواژه‌ها را از مسیر سرورهای ناشناس عبور ندهید.</string>
     <string name="status_busy">لطفاً صبر کنید…</string>
+    <string name="server_card_title">بهترین سرور در دسترس</string>
+    <string name="server_count">در حال حاضر %1$d سرور در فهرست وجود دارد</string>
+    <string name="routing_title">مسیر عبور ترافیک</string>
+    <string name="routing_help">مشخص کنید کدام برنامه‌ها از تونل VPN عبور کنند.</string>
+    <string name="update_initial">برای بررسی نسخه جدید، انتشارهای گیت‌هاب را بررسی کنید.</string>
 </resources>
