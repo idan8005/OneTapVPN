@@ -61,13 +61,18 @@
     <string name="update_initial">برای بررسی نسخه جدید، انتشارهای گیت‌هاب را بررسی کنید.</string>
     <string name="server_already_active">یک اتصال VPN از قبل فعال است.</string>
     <string name="connected_existing_session">اتصال VPN قبلی بازیابی شد.</string>
-    <string name="iran_mode_title">حالت سازگاری با اینترنت ایران · VLESS + REALITY</string>
-    <string name="iran_mode_description">لینک سرور VLESS + REALITY خودتان را وارد کنید. برای اتصال به سرور معتبر نیاز است و سرور رایگان تضمین نمی‌شود.</string>
-    <string name="iran_import_profile">واردکردن لینک VLESS</string>
+    <string name="iran_mode_title">اتصال خودکار مناسب اینترنت ایران</string>
+    <string name="iran_mode_description">برنامه خودش سرورهای عمومی را پیدا می‌کند، سرورهای سازگار را آزمایش می‌کند و بهترین گزینهٔ پاسخ‌گو را انتخاب می‌کند.</string>
+    <string name="iran_refresh_servers">جست‌وجو و تازه‌سازی سرورها</string>
+    <string name="iran_use_vpngate">استفاده از سرورهای کلاسیک VPN Gate</string>
+    <string name="iran_discovery_loading">در حال جست‌وجوی خودکار منابع و بررسی کانفیگ‌ها…</string>
+    <string name="iran_discovered_count">%1$d گزینهٔ VLESS + REALITY از %2$d منبع پیدا شد؛ انتخاب سریع‌ترین سرور به‌صورت خودکار انجام می‌شود.</string>
+    <string name="iran_discovery_failed">پیداکردن سرور ناموفق بود: %1$s. اتصال اینترنت را بررسی و دوباره جست‌وجو کنید.</string>
+    <string name="iran_discovery_fallback">تازه‌سازی انجام نشد؛ از %1$d گزینهٔ ذخیره‌شده استفاده می‌شود. %2$s</string>
     <string name="iran_connect">اتصال با حالت ایران</string>
     <string name="iran_disconnect">قطع اتصال حالت ایران</string>
     <string name="iran_profile_empty">هنوز پروفایل حالت ایران وارد نشده است.</string>
-    <string name="iran_profile_loaded">پروفایل آماده است: %1$s:%2$d</string>
+    <string name="iran_profile_loaded">%1$d سرور ذخیره‌شده از %2$d منبع آمادهٔ آزمایش است.</string>
     <string name="iran_profile_invalid">واردکردن پروفایل ناموفق بود: %1$s</string>
     <string name="iran_profile_input_hint">لینک vless:// را با security=reality و پارامترهای pbk، sni و sid وارد کنید.</string>
     <string name="iran_engine_starting">در حال راه‌اندازی موتور جایگزین VPN…</string>
