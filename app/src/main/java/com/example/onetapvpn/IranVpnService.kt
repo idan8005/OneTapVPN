@@ -147,7 +147,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 updateForegroundNotification(
                     getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
                 )
-                startActiveServerMonitor(config, secret)
+                startActiveServerMonitor(secret)
             } catch (error: Exception) {
                 Log.e(TAG, "VPN startup or Internet verification failed", error)
                 publishStatus(
@@ -470,7 +470,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         Log.w(TAG, "The selected VPN server did not pass the Internet check.", it)
     }.getOrDefault(false)
 
-    private fun startActiveServerMonitor(config: String, secret: String) {
+    private fun startActiveServerMonitor(secret: String) {
         activeServerMonitorJob?.cancel()
         activeServerMonitorJob = serviceScope.launch {
             repeat(ACTIVE_SERVER_INITIAL_POLLS) {
@@ -866,8 +866,23 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val NOTIFICATION_CHANNEL = "raahat_iran_vpn"
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
+        const val EXTRA_SELECTED_OUTBOUND = "selected_outbound_tag"
+        const val AUTO_OUTBOUND_TAG = "auto"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
-        const val ACTIVE_SERVER_API_URL = "http://127.0.0.1:19090/proxies/auto"
+        const val CONTROLLER_BASE_URL = "http://127.0.0.1:19090"
+        const val CONTROLLER_TIMEOUT_MS = 8_000
+        const val PING_TEST_URL = "https://cp.cloudflare.com/generate_204"
+        const val PING_TEST_TIMEOUT_MS = 6_000
+        const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
+        const val SPEED_TEST_TIMEOUT_MS = 12_000
+        const val SPEED_TEST_MAX_BYTES = 512L * 1024L
+        const val SPEED_TEST_MIN_BYTES = 128L * 1024L
+        const val INTERNET_VERIFY_TIMEOUT_MS = 8_000
+        const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
+        const val LOOPBACK_SPEED_PROXY_PORT = 2080
+        const val MAX_PARALLEL_PING_TESTS = 4
+        const val SPEED_SCORE_WEIGHT = 0.65
+        const val LATENCY_SCORE_WEIGHT = 0.35
         const val ACTIVE_SERVER_API_TIMEOUT_MS = 1_000
         const val ACTIVE_SERVER_POLL_INTERVAL_MS = 5_000L
         const val ACTIVE_SERVER_INITIAL_POLLS = 20
