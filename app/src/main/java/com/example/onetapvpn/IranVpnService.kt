@@ -2,11 +2,17 @@ package com.example.onetapvpn
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.os.Process
+import android.system.OsConstants
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.nekohasekai.libbox.BridgeOptions
@@ -18,6 +24,7 @@ import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LocalDNSTransport
 import io.nekohasekai.libbox.NeighborUpdateListener
+import io.nekohasekai.libbox.NetworkInterface as LibboxNetworkInterface
 import io.nekohasekai.libbox.NetworkInterfaceIterator
 import io.nekohasekai.libbox.Notification as LibboxNotification
 import io.nekohasekai.libbox.OverrideOptions
@@ -28,6 +35,10 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
+import java.net.Inet6Address
+import java.net.InetSocketAddress
+import java.net.InterfaceAddress
+import java.net.NetworkInterface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,30 +47,31 @@ import kotlinx.coroutines.launch
 
 /**
  * Optional sing-box engine for user-supplied VLESS + REALITY profiles.
- * It is deliberately separate from the existing OpenVPN/VPN Gate engine.
+ * It runs as a dedicated Android VpnService and does not replace the OpenVPN engine.
  */
 internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val connectivity by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
     private var commandServer: CommandServer? = null
     private var tunFileDescriptor: ParcelFileDescriptor? = null
     private var currentConfig: String? = null
     private var selectedPackages: List<String> = emptyList()
+    private var defaultInterfaceListener: InterfaceUpdateListener? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(
-            NOTIFICATION_ID,
-            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
-                .setSmallIcon(android.R.drawable.stat_sys_warning)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText(getString(R.string.iran_engine_starting))
-                .setOngoing(true)
-                .build()
-        )
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.iran_engine_starting)))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopEngine()
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+
         val config = intent?.getStringExtra(EXTRA_CONFIG)
             ?: currentConfig
             ?: run {
@@ -67,9 +79,11 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 stopSelf(startId)
                 return START_NOT_STICKY
             }
-        val packages = intent?.getStringArrayListExtra(EXTRA_PACKAGES).orEmpty()
+        selectedPackages = intent?.getStringArrayListExtra(EXTRA_PACKAGES)
+            ?.distinct()
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
         currentConfig = config
-        selectedPackages = packages.distinct().filter { it.isNotBlank() }
 
         serviceScope.launch {
             runCatching {
@@ -90,6 +104,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                         error.localizedMessage ?: error.javaClass.simpleName
                     )
                 )
+                stopEngine()
                 stopSelf(startId)
             }
         }
@@ -133,11 +148,12 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun stopEngine() {
-        runCatching { tunFileDescriptor?.close() }
-        tunFileDescriptor = null
+        closeDefaultNetworkMonitor()
         runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
         commandServer = null
+        runCatching { tunFileDescriptor?.close() }
+        tunFileDescriptor = null
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
@@ -149,10 +165,17 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         )
     }
 
+    private fun notification(message: String) =
+        NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(message)
+            .setOngoing(true)
+            .build()
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
                 NotificationChannel(
                     NOTIFICATION_CHANNEL,
                     getString(R.string.iran_notification_channel),
@@ -163,21 +186,14 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun updateForegroundNotification(message: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(
-            NOTIFICATION_ID,
-            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
-                .setSmallIcon(android.R.drawable.stat_sys_warning)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText(message)
-                .setOngoing(true)
-                .build()
-        )
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, notification(message))
     }
 
     // CommandServerHandler callbacks.
     override fun serviceStop() {
         publishStatus(getString(R.string.iran_disconnected))
+        stopEngine()
         stopSelf()
     }
 
@@ -193,29 +209,35 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         }
     }
 
-    override fun getSystemProxyStatus(): SystemProxyStatus = SystemProxyStatus().apply {
-        available = false
-        enabled = false
-    }
+    override fun getSystemProxyStatus(): SystemProxyStatus =
+        SystemProxyStatus().apply {
+            available = false
+            enabled = false
+        }
 
     override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
     override fun triggerNativeCrash() = Unit
+
     override fun writeDebugMessage(message: String?) {
         Log.d(TAG, message.orEmpty())
     }
+
     override fun connectSSHAgent(): Int = -1
 
-    // PlatformInterface methods required by libbox.
+    // PlatformInterface callbacks.
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
+
     override fun autoDetectInterfaceControl(fd: Int) {
         if (!protect(fd)) Log.w(TAG, "Could not protect an outbound socket from the VPN tunnel.")
     }
 
     override fun openTun(options: TunOptions): Int {
         if (VpnService.prepare(this) != null) error("Android VPN permission has not been granted.")
+
         val builder = Builder()
             .setSession(getString(R.string.iran_vpn_session))
             .setMtu(options.mtu)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
 
         val ipv4 = options.inet4Address
@@ -223,6 +245,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             val address = ipv4.next()
             builder.addAddress(address.address(), address.prefix())
         }
+
         val ipv6 = options.inet6Address
         while (ipv6.hasNext()) {
             val address = ipv6.next()
@@ -232,8 +255,38 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         if (options.autoRoute) {
             val dns = options.dnsServerAddress
             while (dns.hasNext()) builder.addDnsServer(dns.next())
-            builder.addRoute("0.0.0.0", 0)
-            builder.addRoute("::", 0)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val ipv4Routes = options.inet4RouteAddress
+                if (ipv4Routes.hasNext()) {
+                    while (ipv4Routes.hasNext()) builder.addRoute(ipv4Routes.next().toIpPrefix())
+                } else if (options.inet4Address.hasNext()) {
+                    builder.addRoute("0.0.0.0", 0)
+                }
+
+                val ipv6Routes = options.inet6RouteAddress
+                if (ipv6Routes.hasNext()) {
+                    while (ipv6Routes.hasNext()) builder.addRoute(ipv6Routes.next().toIpPrefix())
+                } else if (options.inet6Address.hasNext()) {
+                    builder.addRoute("::", 0)
+                }
+
+                val excluded4 = options.inet4RouteExcludeAddress
+                while (excluded4.hasNext()) builder.excludeRoute(excluded4.next().toIpPrefix())
+                val excluded6 = options.inet6RouteExcludeAddress
+                while (excluded6.hasNext()) builder.excludeRoute(excluded6.next().toIpPrefix())
+            } else {
+                val ipv4Routes = options.inet4RouteRange
+                while (ipv4Routes.hasNext()) {
+                    val range = ipv4Routes.next()
+                    builder.addRoute(range.address(), range.prefix())
+                }
+                val ipv6Routes = options.inet6RouteRange
+                while (ipv6Routes.hasNext()) {
+                    val range = ipv6Routes.next()
+                    builder.addRoute(range.address(), range.prefix())
+                }
+            }
 
             val include = options.includePackage
             while (include.hasNext()) {
@@ -262,15 +315,115 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         sourcePort: Int,
         destinationAddress: String,
         destinationPort: Int
-    ): ConnectionOwner = throw UnsupportedOperationException("Connection owner lookup is not enabled.")
+    ): ConnectionOwner {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return ConnectionOwner()
+        val uid = connectivity.getConnectionOwnerUid(
+            ipProtocol,
+            InetSocketAddress(sourceAddress, sourcePort),
+            InetSocketAddress(destinationAddress, destinationPort)
+        )
+        if (uid == Process.INVALID_UID) return ConnectionOwner()
+        val packages = packageManager.getPackagesForUid(uid).orEmpty()
+        return ConnectionOwner().apply {
+            userId = uid
+            userName = packages.firstOrNull().orEmpty()
+            setAndroidPackageNames(StringArray(packages.iterator()))
+        }
+    }
 
-    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
-    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
+    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        closeDefaultNetworkMonitor()
+        defaultInterfaceListener = listener
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                updateDefaultInterface(network)
+            }
 
-    override fun getInterfaces(): NetworkInterfaceIterator = object : NetworkInterfaceIterator {
-        override fun hasNext(): Boolean = false
-        override fun next(): io.nekohasekai.libbox.NetworkInterface =
-            throw NoSuchElementException("No Android network interface snapshot is available.")
+            override fun onLost(network: Network) {
+                val current = connectivity.activeNetwork
+                if (current == null || current == network) {
+                    listener.updateDefaultInterface("", -1, false, false)
+                } else {
+                    updateDefaultInterface(current)
+                }
+            }
+        }
+        networkCallback = callback
+        runCatching {
+            connectivity.registerDefaultNetworkCallback(callback)
+            connectivity.activeNetwork?.let(::updateDefaultInterface)
+        }.onFailure {
+            Log.w(TAG, "Could not monitor Android's default network", it)
+        }
+    }
+
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        closeDefaultNetworkMonitor()
+    }
+
+    private fun closeDefaultNetworkMonitor() {
+        networkCallback?.let { callback ->
+            runCatching { connectivity.unregisterNetworkCallback(callback) }
+        }
+        networkCallback = null
+        defaultInterfaceListener = null
+    }
+
+    private fun updateDefaultInterface(network: Network) {
+        val listener = defaultInterfaceListener ?: return
+        val linkProperties = connectivity.getLinkProperties(network) ?: return
+        val name = linkProperties.interfaceName ?: return
+        val index = runCatching { NetworkInterface.getByName(name)?.index ?: -1 }.getOrDefault(-1)
+        if (index >= 0) listener.updateDefaultInterface(name, index, false, false)
+    }
+
+    override fun getInterfaces(): NetworkInterfaceIterator {
+        val interfaces = mutableListOf<LibboxNetworkInterface>()
+        val networkInterfaces = runCatching {
+            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+        }.getOrDefault(emptyList())
+
+        for (network in connectivity.allNetworks) {
+            val linkProperties = connectivity.getLinkProperties(network) ?: continue
+            val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
+            val name = linkProperties.interfaceName ?: continue
+            val systemInterface = networkInterfaces.firstOrNull { it.name == name } ?: continue
+            val boxInterface = LibboxNetworkInterface().apply {
+                this.name = name
+                dnsServer = StringArray(linkProperties.dnsServers.mapNotNull { it.hostAddress }.iterator())
+                dnsSearchDomain = StringArray(
+                    linkProperties.domains.orEmpty().split(' ').filter { it.isNotBlank() }.iterator()
+                )
+                gateway = StringArray(
+                    linkProperties.routes
+                        .filter { it.destination.prefixLength == 0 }
+                        .mapNotNull { it.gateway?.hostAddress }
+                        .iterator()
+                )
+                type = when {
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Libbox.InterfaceTypeWIFI
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Libbox.InterfaceTypeCellular
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Libbox.InterfaceTypeEthernet
+                    else -> Libbox.InterfaceTypeOther
+                }
+                index = systemInterface.index
+                mtu = runCatching { systemInterface.mtu }.getOrDefault(1500)
+                addresses = StringArray(systemInterface.interfaceAddresses.map { it.toPrefix() }.iterator())
+                flags = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                    OsConstants.IFF_UP or OsConstants.IFF_RUNNING
+                } else {
+                    0
+                }
+                metered = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            }
+            interfaces.add(boxInterface)
+        }
+
+        return object : NetworkInterfaceIterator {
+            private val iterator = interfaces.iterator()
+            override fun hasNext(): Boolean = iterator.hasNext()
+            override fun next(): LibboxNetworkInterface = iterator.next()
+        }
     }
 
     override fun underNetworkExtension(): Boolean = false
@@ -315,6 +468,13 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         override fun next(): String = iterator.next()
     }
 
+    private fun InterfaceAddress.toPrefix(): String {
+        val address = address.hostAddress.substringBefore('%')
+        return "${address}/$networkPrefixLength"
+    }
+
+    private fun android.net.IpPrefix.toIpPrefix(): String = toString()
+
     private companion object {
         const val TAG = "RaahatIranVpn"
         const val NOTIFICATION_ID = 2405
@@ -327,17 +487,5 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
         @Volatile
         private var isLibboxReady = false
-
-        fun startIntent(
-            context: android.content.Context,
-            profile: IranVpnProfile,
-            selectedPackages: Set<String>
-        ): Intent = Intent(context, IranVpnService::class.java).apply {
-            putExtra(EXTRA_CONFIG, profile.configJson)
-            putStringArrayListExtra(EXTRA_PACKAGES, ArrayList(selectedPackages))
-        }
-
-        fun stopIntent(context: android.content.Context): Intent =
-            Intent(context, IranVpnService::class.java).setAction(ACTION_STOP)
     }
 }
