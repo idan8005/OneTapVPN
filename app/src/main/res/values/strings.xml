@@ -5,6 +5,7 @@
     <string name="connection_title">QUICK VPN CONNECTION</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_connecting">Connecting…</string>
+    <string name="status_finding_server">Finding the fastest server…</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnecting">Disconnecting…</string>
     <string name="status_error">Connection problem</string>

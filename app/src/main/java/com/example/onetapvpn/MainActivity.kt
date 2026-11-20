@@ -110,6 +110,13 @@ class MainActivity : AppCompatActivity() {
                 viewModel.uiState.collect(::render)
             }
         }
+        // Zero-touch start: connect automatically on a fresh launch (not on rotation or when
+        // returning to the app). On the very first run Android still shows its one-time VPN prompt.
+        if (savedInstanceState == null) {
+            window.decorView.post {
+                if (latestState.status == VpnStatus.DISCONNECTED) onConnectionButtonPressed()
+            }
+        }
     }
 
     override fun onResume() {

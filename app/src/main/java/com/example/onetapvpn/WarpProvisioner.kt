@@ -23,6 +23,36 @@ internal object WarpProvisioner {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 20_000
     private const val MAX_ERROR_BODY_CHARS = 800
+    private const val MAX_ATTEMPTS = 3
+    private const val RETRY_DELAY_MS = 1_500L
+    private const val DEFAULT_PORT = 2408
+    private val IPV4 = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
+
+    /** Retries transient network failures a few times so the user never has to tap again. */
+    @Throws(IOException::class, IllegalStateException::class)
+    fun provisionWithRetry(attempts: Int = MAX_ATTEMPTS): String {
+        var lastError: IOException? = null
+        for (attempt in 1..attempts) {
+            try {
+                return provision()
+            } catch (error: IOException) {
+                lastError = error
+                if (attempt < attempts) Thread.sleep(RETRY_DELAY_MS * attempt)
+            }
+        }
+        throw lastError ?: IOException("Cloudflare WARP registration failed.")
+    }
+
+    /**
+     * Prefers the endpoint's IPv4 address over its host name so connecting does not depend on DNS
+     * (resolvers on some networks block or poison cloudflareclient.com). Falls back to the host.
+     */
+    internal fun resolveEndpoint(host: String, v4: String): String {
+        val port = host.substringAfterLast(':', "").toIntOrNull()?.takeIf { it in 1..65535 }
+            ?: DEFAULT_PORT
+        val ip = v4.trim().substringBefore(':')
+        return if (IPV4.matches(ip)) "$ip:$port" else host
+    }
 
     @Throws(IOException::class, IllegalStateException::class)
     fun provision(): String {
@@ -99,6 +129,7 @@ internal object WarpProvisioner {
             ?: throw JSONException("The WARP endpoint is missing.")
         val endpointHost = endpointObject.optString("host").trim()
         if (endpointHost.isEmpty()) throw JSONException("The WARP endpoint host is missing.")
+        val endpoint = resolveEndpoint(endpointHost, endpointObject.optString("v4"))
 
         val addresses = config.optJSONObject("interface")
             ?.optJSONObject("addresses")
@@ -123,7 +154,7 @@ internal object WarpProvisioner {
             [Peer]
             PublicKey = $peerPublicKey
             AllowedIPs = $allowedIps
-            Endpoint = $endpointHost
+            Endpoint = $endpoint
             PersistentKeepalive = 25
         """.trimIndent()
     }

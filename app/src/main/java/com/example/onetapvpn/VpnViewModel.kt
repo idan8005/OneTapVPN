@@ -1,6 +1,8 @@
 package com.example.onetapvpn
 
 import android.app.Application
+import android.content.Context
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wireguard.android.backend.Backend
@@ -33,6 +35,8 @@ internal data class VpnUiState(
 internal class VpnViewModel(application: Application) : AndroidViewModel(application) {
     private val configStore = SecureConfigStore(application)
     private val backend: Backend = GoBackend(application.applicationContext)
+    private val selectionPrefs =
+        application.getSharedPreferences(SELECTION_PREFS, Context.MODE_PRIVATE)
     private val workerDispatcher =
         Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "RaahatVPN-worker").apply { isDaemon = true }
@@ -49,11 +53,15 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         override fun onStateChange(newState: Tunnel.State) {
             _uiState.update { current ->
                 when (newState) {
-                    Tunnel.State.UP -> current.copy(
-                        status = VpnStatus.CONNECTED,
-                        message = getApplication<Application>().getString(R.string.status_connected),
-                        isBusy = false
-                    )
+                    Tunnel.State.UP ->
+                        // While connecting, the connect flow reports the final state itself; the
+                        // tunnel may go up and down several times while the fastest server is chosen.
+                        if (current.status == VpnStatus.CONNECTING) current
+                        else current.copy(
+                            status = VpnStatus.CONNECTED,
+                            message = getApplication<Application>().getString(R.string.status_connected),
+                            isBusy = false
+                        )
                     Tunnel.State.DOWN -> {
                         if (current.status == VpnStatus.CONNECTING) current
                         else current.copy(
@@ -104,10 +112,11 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val finalState = withContext(workerDispatcher) {
                     val savedProfile = configStore.read()
-                    val profile = savedProfile ?: WarpProvisioner.provision()
+                    val profile = savedProfile ?: WarpProvisioner.provisionWithRetry()
                     val config = WireGuardProfileValidator.parse(profile)
                     if (savedProfile == null) configStore.write(profile)
-                    backend.setState(tunnel, Tunnel.State.UP, config)
+                    if (ServerSelector.isWarpProfile(profile)) connectToFastestServer(profile)
+                    else backend.setState(tunnel, Tunnel.State.UP, config)
                 }
                 updateFromBackend(finalState)
             } catch (error: Exception) {
@@ -183,6 +192,76 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Tries WARP endpoints one after another, measures how long each takes to complete a WireGuard
+     * handshake, and leaves the tunnel up on the quickest one. The winner is remembered and tried
+     * first next time, so later connections usually stop after a single quick check.
+     * Must run on the worker thread.
+     */
+    private fun connectToFastestServer(profile: String): Tunnel.State {
+        _uiState.update {
+            it.copy(message = getApplication<Application>().getString(R.string.status_finding_server))
+        }
+        val budgetEnd = SystemClock.elapsedRealtime() + TOTAL_BUDGET_MS
+        val preferred = selectionPrefs.getString(KEY_BEST_ENDPOINT, null)
+        var best: String? = null
+        var bestMillis = Long.MAX_VALUE
+        var upOn: String? = null
+
+        for (endpoint in ServerSelector.orderedCandidates(profile, preferred)) {
+            if (SystemClock.elapsedRealtime() >= budgetEnd) break
+            val millis = probeHandshake(profile, endpoint) ?: continue
+            if (millis < bestMillis) {
+                best = endpoint
+                bestMillis = millis
+            }
+            if (endpoint == preferred && millis <= EARLY_STOP_MS) {
+                upOn = endpoint
+                break
+            }
+            backend.setState(tunnel, Tunnel.State.DOWN, null)
+        }
+
+        best?.let { selectionPrefs.edit().putString(KEY_BEST_ENDPOINT, it).apply() }
+        if (upOn != null) return Tunnel.State.UP
+
+        // No server answered in time: fall back to the profile as saved, as before.
+        val finalProfile = best?.let { ServerSelector.withEndpoint(profile, it) } ?: profile
+        return backend.setState(tunnel, Tunnel.State.UP, WireGuardProfileValidator.parse(finalProfile))
+    }
+
+    /** Brings the tunnel up on [endpoint]; returns millis to the first handshake, or null (tunnel left down). */
+    private fun probeHandshake(profile: String, endpoint: String): Long? {
+        val config = try {
+            WireGuardProfileValidator.parse(ServerSelector.withEndpoint(profile, endpoint))
+        } catch (error: Exception) {
+            return null
+        }
+        val start = SystemClock.elapsedRealtime()
+        try {
+            backend.setState(tunnel, Tunnel.State.UP, config)
+            while (SystemClock.elapsedRealtime() - start < PROBE_TIMEOUT_MS) {
+                if (hasHandshake()) return SystemClock.elapsedRealtime() - start
+                Thread.sleep(POLL_INTERVAL_MS)
+            }
+        } catch (error: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (error: Exception) {
+            // Treat as an unreachable server and try the next one.
+        }
+        try {
+            backend.setState(tunnel, Tunnel.State.DOWN, null)
+        } catch (error: Exception) {
+            // Already down.
+        }
+        return null
+    }
+
+    private fun hasHandshake(): Boolean {
+        val stats = backend.getStatistics(tunnel)
+        return stats.peers().any { key -> (stats.peer(key)?.latestHandshakeEpochMillis() ?: 0L) > 0L }
+    }
+
     private fun updateFromBackend(state: Tunnel.State) {
         val connected = state == Tunnel.State.UP
         _uiState.update {
@@ -220,5 +299,11 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
     private companion object {
         const val TUNNEL_NAME = "onetap"
         const val MAX_ERROR_CHARS = 240
+        const val SELECTION_PREFS = "onetapvpn_server_selection"
+        const val KEY_BEST_ENDPOINT = "best_endpoint"
+        const val PROBE_TIMEOUT_MS = 2_500L
+        const val POLL_INTERVAL_MS = 100L
+        const val TOTAL_BUDGET_MS = 15_000L
+        const val EARLY_STOP_MS = 1_500L
     }
 }

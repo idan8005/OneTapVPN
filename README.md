@@ -16,7 +16,7 @@
 2. Open **Raahat VPN**.
 3. Tap **Connect**. On the first connection only, approve Android's VPN permission prompt. Raahat VPN then attempts to obtain and save its WARP profile automatically.
 
-After Android permission has been approved, later connections are started with one tap. No account, API key, manual server selection, or initial WireGuard profile import is required for the automatic WARP attempt.
+The app also connects automatically each time it is opened (not when you return to it or rotate the screen). After Android permission has been approved, you can also connect or disconnect with one tap. No account, API key, manual server selection, or initial WireGuard profile import is required for the automatic WARP attempt.
 
 Manual WireGuard import/export is still available under **Advanced settings (optional)** and is hidden from the normal start screen.
 
@@ -43,6 +43,7 @@ The earlier 1.1.0 debug APK used a temporary debug certificate. Android will not
 ## Connection behaviour and limits
 
 - **Automatic WARP profile:** On first connection, the app attempts to create a free Cloudflare WARP profile. The consumer registration endpoint used is unofficial for third-party clients and may be changed or blocked without notice. Automatic provisioning is not guaranteed.
+- **Fastest server:** For the automatic WARP profile, the first connection tests several Cloudflare WARP endpoints, keeps the one that completes a WireGuard handshake fastest, and remembers it. Later connections try that endpoint first. This picks the quickest entry point to Cloudflare's network; it does not choose a country, and actual speed still depends on your network. Profiles you import yourself are never changed.
 - **Your own WireGuard profile:** Import a `.conf` file or paste its contents from Advanced settings. Profiles are size-limited and validated before saving.
 - **Profile export:** Export a saved profile from Advanced settings. The exported file contains the private key; protect it and delete it after importing it on the destination device.
 
