@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private val iranVpnManager by lazy { IranVpnManager(applicationContext) }
     private val iranProfileStore by lazy { IranVpnProfileStore(applicationContext) }
     private var iranReceiverRegistered = false
+    private var iranModeActive = false
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -96,8 +97,17 @@ class MainActivity : AppCompatActivity() {
     private val iranStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == ACTION_IRAN_STATUS) {
-                iranProfileStatusText.text = intent.getStringExtra(EXTRA_IRAN_STATUS)
+                val message = intent.getStringExtra(EXTRA_IRAN_STATUS)
                     ?: getString(R.string.status_error)
+                iranProfileStatusText.text = message
+                iranModeActive = message == getString(R.string.iran_engine_starting) ||
+                    message == getString(R.string.iran_engine_started)
+                if (message == getString(R.string.iran_disconnected) ||
+                    message.startsWith(getString(R.string.iran_engine_error).substringBefore("%1"))
+                ) {
+                    iranModeActive = false
+                }
+                render(latestState)
             }
         }
     }
@@ -258,7 +268,9 @@ class MainActivity : AppCompatActivity() {
         iranContent.addView(connectIranButton, matchWrap().apply { topMargin = dp(8) })
         disconnectIranButton = outlinedButton(getString(R.string.iran_disconnect)) {
             iranVpnManager.stop()
+            iranModeActive = false
             iranProfileStatusText.text = getString(R.string.iran_disconnected)
+            render(latestState)
         }
         iranContent.addView(disconnectIranButton, matchWrap().apply { topMargin = dp(8) })
         iranCard.addView(iranContent)
@@ -473,12 +485,21 @@ class MainActivity : AppCompatActivity() {
                     getString(R.string.status_error)
                 )
             } else {
+                iranModeActive = true
                 iranProfileStatusText.text = getString(R.string.iran_engine_starting)
+                render(latestState)
             }
         }
     }
 
     private fun onConnectionButtonPressed() {
+        if (iranModeActive) {
+            iranVpnManager.stop()
+            iranModeActive = false
+            iranProfileStatusText.text = getString(R.string.iran_disconnected)
+            render(latestState)
+            return
+        }
         when (latestState.status) {
             VpnStatus.CONNECTED -> viewModel.disconnect()
             VpnStatus.CONNECTING -> Unit
@@ -518,9 +539,15 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.connect)
         }
         connectButton.backgroundTintList = android.content.res.ColorStateList.valueOf(
-            if (state.status == VpnStatus.CONNECTED) Color.rgb(190, 62, 70)
+            if (state.status == VpnStatus.CONNECTED || iranModeActive) Color.rgb(190, 62, 70)
             else Color.rgb(31, 144, 109)
         )
+        if (iranModeActive) {
+            statusText.text = getString(R.string.status_connecting)
+            detailText.text = iranProfileStatusText.text
+            connectButton.text = getString(R.string.iran_disconnect)
+            connectButton.isEnabled = true
+        }
 
         val server = state.currentServer
         serverText.text = if (server == null && state.status == VpnStatus.CONNECTED) {
