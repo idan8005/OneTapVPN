@@ -12,6 +12,11 @@ val resolvedVersionName = providers.environmentVariable("RAAHAT_VERSION_NAME").o
     ?: taggedVersionName
     ?: baseVersionName
 val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(14) ?: 14
+val hybridApiBaseUrl = providers.environmentVariable("RAAHAT_API_BASE_URL").orNull.orEmpty()
+    .trim().trimEnd('/')
+val escapedHybridApiBaseUrl = hybridApiBaseUrl
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 val releaseStoreFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseStorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
@@ -35,6 +40,7 @@ android {
         versionCode = resolvedVersionCode
         versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "RAAHAT_API_BASE_URL", "\"$escapedHybridApiBaseUrl\"")
     }
 
     signingConfigs {
