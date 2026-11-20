@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     private var routing = RoutingSettings()
     private var serverProfiles: List<IranVpnProfile> = emptyList()
     private var selectedServerKey: String = IranVpnProfileStore.AUTO_SELECTION_KEY
+    private var activeServerTag: String? = null
     private var serverNotice: String? = null
     private var uiState = UiState.IDLE
     private var connectionRequested = false
@@ -87,6 +88,9 @@ class MainActivity : AppCompatActivity() {
             if (intent.action != IranVpnContract.ACTION_STATUS) return
             val state = intent.getStringExtra(IranVpnContract.EXTRA_STATE).orEmpty()
             val message = intent.getStringExtra(IranVpnContract.EXTRA_MESSAGE).orEmpty()
+            intent.getStringExtra(IranVpnContract.EXTRA_ACTIVE_TAG)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { activeServerTag = it }
 
             when (state) {
                 IranVpnContract.STATE_CONNECTED -> {
@@ -337,6 +341,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         connectionRequested = true
+        activeServerTag = null
         uiState = UiState.DISCOVERING
         val currentSelection = profileStore.selectedProfile()
         connectionMessage = if (
@@ -434,6 +439,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun disconnect() {
         connectionRequested = false
+        activeServerTag = null
         discoveryJob?.cancel()
         vpnManager.stop()
         pendingProfile = null
@@ -444,6 +450,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun failConnection(message: String) {
         connectionRequested = false
+        activeServerTag = null
         discoveryJob?.cancel()
         uiState = UiState.ERROR
         connectionMessage = message
@@ -470,8 +477,20 @@ class MainActivity : AppCompatActivity() {
         detailText.text = when (uiState) {
             UiState.CONNECTED -> {
                 val activeProfile = pendingProfile
-                if (activeProfile == null || activeProfile.serverHost == "auto") {
-                    getString(R.string.iran_connected_auto, activeProfile?.candidateCount ?: 0)
+                if (activeProfile == null) {
+                    getString(R.string.iran_connected)
+                } else if (activeProfile.serverHost == "auto") {
+                    val selected = activeAutomaticServer()
+                    if (selected == null) {
+                        getString(R.string.iran_connected_auto_pending, activeProfile.candidateCount)
+                    } else {
+                        getString(
+                            R.string.iran_connected_to_server,
+                            selected.name,
+                            selected.serverHost,
+                            selected.serverPort
+                        )
+                    }
                 } else {
                     getString(
                         R.string.iran_connected_to_server,
@@ -504,6 +523,12 @@ class MainActivity : AppCompatActivity() {
             RoutingMode.SELECTED_APPS -> getString(R.string.selected_apps_description) +
                 " " + getString(R.string.choose_apps_count, routing.selectedPackages.size)
         }
+    }
+
+    private fun activeAutomaticServer(): IranVpnProfile? {
+        val tag = activeServerTag ?: return null
+        val index = tag.removePrefix("node-").toIntOrNull()?.minus(1) ?: return null
+        return serverProfiles.getOrNull(index) ?: profileStore.readServers().getOrNull(index)
     }
 
     private fun renderServerSelection(message: String? = null) {
