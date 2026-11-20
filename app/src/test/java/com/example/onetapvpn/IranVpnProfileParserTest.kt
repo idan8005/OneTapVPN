@@ -23,6 +23,9 @@ class IranVpnProfileParserTest {
         assertEquals("vless", outbound.getString("type"))
         assertEquals("123e4567-e89b-12d3-a456-426614174000", outbound.getString("uuid"))
         assertEquals("www.example.com", outbound.getJSONObject("tls").getString("server_name"))
+        assertEquals("dns-remote", outbound.getString("domain_resolver"))
+        val dns = config.getJSONObject("dns").getJSONArray("servers").getJSONObject(0)
+        assertEquals("cloudflare-dns.com", dns.getJSONObject("tls").getString("server_name"))
         assertEquals("proxy", config.getJSONObject("route").getString("final"))
     }
 
