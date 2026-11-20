@@ -18,6 +18,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -34,6 +35,7 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -521,7 +523,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun monitorUpdateDownload(downloadId: Long) {
-        while (isActive) {
+        while (currentCoroutineContext().isActive) {
             val snapshot = withContext(Dispatchers.IO) {
                 appUpdater.downloadSnapshot(downloadId)
             }
