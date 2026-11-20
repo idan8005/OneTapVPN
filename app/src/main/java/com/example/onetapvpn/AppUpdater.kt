@@ -10,6 +10,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import org.json.JSONArray
 import org.json.JSONObject
 
 internal sealed interface UpdateCheck {
@@ -44,38 +45,47 @@ internal class AppUpdater(context: Context) {
 
     @Throws(IOException::class)
     fun checkForUpdate(): UpdateCheck {
-        val manifestText = readText(UPDATE_MANIFEST_URL)
-        val manifest = JSONObject(manifestText)
-        val remoteVersion = manifest.optString("version")
+        val release = JSONObject(readText(LATEST_RELEASE_API_URL))
+        val remoteVersion = release.optString("tag_name")
             .trim()
             .removePrefix("v")
-            .takeIf { it.isNotBlank() }
-            ?: throw IOException("The update manifest has no version.")
-        val downloadUrl = manifest.optString("apk_url")
-            .takeIf { it.isNotBlank() }
-            ?: throw IOException("The update manifest has no APK URL.")
-        val checksum = manifest.optString("sha256")
-            .takeIf { SHA256_PATTERN.matches(it) }
-            ?: throw IOException("The update manifest has no valid SHA-256 checksum.")
+            .takeIf { VERSION_PATTERN.matches(it) }
+            ?: throw IOException("The latest GitHub release has no valid version tag.")
 
         if (compareVersions(remoteVersion, BuildConfig.VERSION_NAME) <= 0) {
             return UpdateCheck.Current
         }
-        if (!isTrustedUpdateUrl(downloadUrl)) {
-            throw IOException("The update manifest contains an untrusted download URL.")
+
+        val assets = release.optJSONArray("assets")
+            ?: throw IOException("The latest GitHub release has no downloadable assets.")
+        val apkAsset = assets.findAsset(APK_ASSET_NAME)
+            ?: throw IOException("The latest release does not contain $APK_ASSET_NAME.")
+        val checksumAsset = assets.findAsset(CHECKSUM_ASSET_NAME)
+            ?: throw IOException("The latest release does not contain $CHECKSUM_ASSET_NAME.")
+
+        val apkUrl = apkAsset.optString("browser_download_url")
+        if (!isTrustedDownloadUrl(apkUrl)) {
+            throw IOException("The latest release contains an untrusted APK URL.")
         }
+
+        val digestFromApi = apkAsset.optString("digest")
+            .removePrefix("sha256:")
+            .takeIf { SHA256_PATTERN.matches(it) }
+        val checksum = digestFromApi ?: readChecksum(
+            checksumAsset.optString("browser_download_url")
+        )
 
         return UpdateCheck.Available(
             AppRelease(
                 versionName = remoteVersion,
-                apkUrl = downloadUrl,
+                apkUrl = apkUrl,
                 sha256 = checksum.lowercase()
             )
         )
     }
 
     fun enqueueDownload(release: AppRelease): Long {
-        require(isTrustedUpdateUrl(release.apkUrl)) { "Untrusted update download URL." }
+        require(isTrustedDownloadUrl(release.apkUrl)) { "Untrusted update download URL." }
         require(SHA256_PATTERN.matches(release.sha256)) { "Invalid update checksum." }
 
         val destination = File(
@@ -101,13 +111,15 @@ internal class AppUpdater(context: Context) {
             )
 
         val downloadId = downloadManager.enqueue(request)
-        check(
-            preferences.edit()
-                .putLong(KEY_DOWNLOAD_ID, downloadId)
-                .putString(KEY_EXPECTED_SHA256, release.sha256.lowercase())
-                .putString(KEY_TARGET_VERSION, release.versionName)
-                .commit()
-        ) { "Could not save update download state." }
+        val saved = preferences.edit()
+            .putLong(KEY_DOWNLOAD_ID, downloadId)
+            .putString(KEY_EXPECTED_SHA256, release.sha256.lowercase())
+            .putString(KEY_TARGET_VERSION, release.versionName)
+            .commit()
+        if (!saved) {
+            downloadManager.remove(downloadId)
+            throw IOException("Could not save update download state.")
+        }
         return downloadId
     }
 
@@ -166,24 +178,36 @@ internal class AppUpdater(context: Context) {
     }
 
     private fun readChecksum(url: String): String {
+        if (!isTrustedDownloadUrl(url) || !url.endsWith(CHECKSUM_ASSET_NAME)) {
+            throw IOException("The release checksum URL is invalid.")
+        }
         val body = readText(url)
-        val checksum = SHA256_PATTERN.find(body)?.value
+        return SHA256_PATTERN.find(body)?.value?.lowercase()
             ?: throw IOException("The release checksum file is invalid.")
-        return checksum.lowercase()
     }
 
     private fun readText(url: String): String {
-        if (!isTrustedUpdateUrl(url)) throw IOException("Untrusted update metadata URL.")
+        if (!isTrustedMetadataUrl(url) && !isTrustedDownloadUrl(url)) {
+            throw IOException("Untrusted update metadata URL.")
+        }
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
+            instanceFollowRedirects = true
             setRequestProperty("User-Agent", USER_AGENT)
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("X-GitHub-Api-Version", GITHUB_API_VERSION)
         }
         return try {
             val code = connection.responseCode
             if (code != HttpURLConnection.HTTP_OK) {
-                throw IOException("Could not read update checksum (HTTP $code).")
+                val message = if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    "The update repository is private or no public release has been published."
+                } else {
+                    "Could not read update information (HTTP $code)."
+                }
+                throw IOException(message)
             }
             connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
@@ -204,18 +228,28 @@ internal class AppUpdater(context: Context) {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun isTrustedUpdateUrl(value: String): Boolean = try {
+    private fun isTrustedMetadataUrl(value: String): Boolean = try {
         val parsed = Uri.parse(value)
         parsed.scheme == "https" &&
-            parsed.host.equals(UPDATE_HOST, ignoreCase = true) &&
-            parsed.path.orEmpty().startsWith("/")
+            parsed.host.equals(GITHUB_API_HOST, ignoreCase = true) &&
+            parsed.path == LATEST_RELEASE_API_PATH
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun isTrustedDownloadUrl(value: String): Boolean = try {
+        val parsed = Uri.parse(value)
+        parsed.scheme == "https" &&
+            parsed.host.equals(GITHUB_DOWNLOAD_HOST, ignoreCase = true) &&
+            parsed.path.orEmpty().startsWith(RELEASE_ASSET_PATH_PREFIX) &&
+            parsed.query.isNullOrEmpty()
     } catch (_: Exception) {
         false
     }
 
     private fun compareVersions(left: String, right: String): Int {
         fun parts(value: String): List<Int> {
-            val match = VERSION_PATTERN.find(value)
+            val match = VERSION_PATTERN.matchEntire(value)
                 ?: throw IOException("Invalid application version: $value")
             return match.groupValues.drop(1).map { it.toInt() }
         }
@@ -228,6 +262,14 @@ internal class AppUpdater(context: Context) {
         return 0
     }
 
+    private fun JSONArray.findAsset(expectedName: String): JSONObject? {
+        for (index in 0 until length()) {
+            val asset = optJSONObject(index) ?: continue
+            if (asset.optString("name") == expectedName) return asset
+        }
+        return null
+    }
+
     private fun Cursor.getIntColumn(name: String): Int =
         getInt(getColumnIndexOrThrow(name))
 
@@ -235,9 +277,12 @@ internal class AppUpdater(context: Context) {
         getLong(getColumnIndexOrThrow(name))
 
     private companion object {
-        const val UPDATE_HOST = "raahat-vpn-updates.onrender.com"
-        const val UPDATE_MANIFEST_URL =
-            "https://raahat-vpn-updates.onrender.com/latest.json"
+        const val GITHUB_API_HOST = "api.github.com"
+        const val GITHUB_DOWNLOAD_HOST = "github.com"
+        const val LATEST_RELEASE_API_PATH = "/repos/idan8005/OneTapVPN/releases/latest"
+        const val RELEASE_ASSET_PATH_PREFIX = "/idan8005/OneTapVPN/releases/download/"
+        const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/idan8005/OneTapVPN/releases/latest"
+        const val GITHUB_API_VERSION = "2022-11-28"
         const val USER_AGENT = "RaahatVPN-Android-Updater"
         const val PREFERENCES_NAME = "raahat_vpn_updater"
         const val KEY_DOWNLOAD_ID = "download_id"
@@ -251,6 +296,6 @@ internal class AppUpdater(context: Context) {
         const val CONNECT_TIMEOUT_MS = 12_000
         const val READ_TIMEOUT_MS = 20_000
         val SHA256_PATTERN = Regex("(?i)\\b[0-9a-f]{64}\\b")
-        val VERSION_PATTERN = Regex("^(?:v)?(\\d+)\\.(\\d+)\\.(\\d+)")
+        val VERSION_PATTERN = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)$")
     }
 }
