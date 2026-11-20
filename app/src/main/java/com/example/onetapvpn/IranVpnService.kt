@@ -66,6 +66,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     private val connectivity by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
     private var commandServer: CommandServer? = null
     private var activeServerMonitorJob: kotlinx.coroutines.Job? = null
+    private var startupJob: kotlinx.coroutines.Job? = null
     private var selectedOutboundTag: String = AUTO_OUTBOUND_TAG
     private var tunFileDescriptor: ParcelFileDescriptor? = null
     private var currentConfig: String? = null
@@ -103,7 +104,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             ?: AUTO_OUTBOUND_TAG
         currentConfig = config
 
-        serviceScope.launch {
+        startupJob?.cancel()
+        startupJob = serviceScope.launch {
             try {
                 ensureLibboxSetup()
                 val server = commandServer ?: CommandServer(this@IranVpnService, this@IranVpnService).also {
@@ -152,6 +154,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
                 )
                 startActiveServerMonitor(secret)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
                 Log.e(TAG, "VPN startup or Internet verification failed", error)
                 publishStatus(
@@ -203,6 +207,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun stopEngine() {
+        startupJob?.cancel()
+        startupJob = null
         activeServerMonitorJob?.cancel()
         activeServerMonitorJob = null
         closeDefaultNetworkMonitor()
@@ -915,16 +921,15 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val PING_TEST_URL = "https://cp.cloudflare.com/generate_204"
         const val PING_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
-        const val SPEED_TEST_TIMEOUT_MS = 12_000
-        const val SPEED_TEST_MAX_BYTES = 512L * 1024L
-        const val SPEED_TEST_MIN_BYTES = 128L * 1024L
+        const val SPEED_TEST_TIMEOUT_MS = 8_000
+        const val SPEED_TEST_MAX_BYTES = 256L * 1024L
+        const val SPEED_TEST_MIN_BYTES = 64L * 1024L
         const val INTERNET_VERIFY_TIMEOUT_MS = 8_000
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
         const val MAX_PARALLEL_PING_TESTS = 4
         const val SPEED_SCORE_WEIGHT = 0.65
         const val LATENCY_SCORE_WEIGHT = 0.35
-        const val ACTIVE_SERVER_API_TIMEOUT_MS = 1_000
         const val ACTIVE_SERVER_POLL_INTERVAL_MS = 5_000L
         const val ACTIVE_SERVER_INITIAL_POLLS = 20
 
