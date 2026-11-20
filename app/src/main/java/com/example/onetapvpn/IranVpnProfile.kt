@@ -11,12 +11,35 @@ internal data class IranVpnProfile(
     val name: String,
     val serverHost: String,
     val serverPort: Int,
-    val configJson: String
+    val configJson: String,
+    val candidateCount: Int = 1,
+    val sourceCount: Int = 1
 )
 
 internal object IranVpnProfileParser {
     fun parse(link: String): IranVpnProfile {
-        val value = link.trim()
+        val node = parseNode(link)
+        return createProfile(listOf(node), sourceCount = 1, automaticSelection = false)
+    }
+
+    fun parseAutomatic(
+        links: List<String>,
+        sourceCount: Int
+    ): IranVpnProfile {
+        val nodes = links.asSequence()
+            .mapNotNull { link -> runCatching { parseNode(link) }.getOrNull() }
+            .distinctBy { "${it.host.lowercase()}:${it.port}:${it.uuid}" }
+            .take(MAX_AUTO_NODES)
+            .toList()
+
+        require(nodes.isNotEmpty()) {
+            "No compatible VLESS + REALITY TCP servers were found in the public feeds."
+        }
+        return createProfile(nodes, sourceCount.coerceAtLeast(1), automaticSelection = true)
+    }
+
+    private fun parseNode(link: String): ParsedNode {
+        val value = link.trim().trim('"', '\'')
         require(value.startsWith("vless://", ignoreCase = true)) {
             "Only VLESS links are supported in Iran mode."
         }
@@ -27,6 +50,7 @@ internal object IranVpnProfileParser {
             throw IllegalArgumentException("The VLESS link is malformed.", error)
         }
         require(uri.scheme.equals("vless", ignoreCase = true)) { "Invalid VLESS scheme." }
+
         val uuid = decode(uri.rawUserInfo.orEmpty())
         require(runCatching { UUID.fromString(uuid) }.isSuccess) { "The VLESS UUID is invalid." }
 
@@ -38,7 +62,8 @@ internal object IranVpnProfileParser {
         require(query["security"].equals("reality", ignoreCase = true)) {
             "Iran mode currently accepts VLESS + REALITY links only."
         }
-        require(query["type"].isNullOrBlank() || query["type"].equals("tcp", ignoreCase = true)) {
+        val transport = query["type"]?.lowercase()
+        require(transport.isNullOrBlank() || transport == "tcp" || transport == "raw") {
             "This VLESS link uses an unsupported transport. TCP is required."
         }
         require(query["encryption"].isNullOrBlank() || query["encryption"] == "none") {
@@ -46,14 +71,20 @@ internal object IranVpnProfileParser {
         }
 
         val serverName = query["sni"]?.takeIf { it.isNotBlank() }
-            ?: query["serverName"]?.takeIf { it.isNotBlank() }
+            ?: query["servername"]?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("The REALITY server name (sni) is missing.")
-        val publicKey = query["pbk"]?.takeIf { it.isNotBlank() }
-            ?: query["publicKey"]?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("The REALITY public key (pbk) is missing.")
-        require(REALITY_KEY_PATTERN.matches(publicKey)) { "The REALITY public key is invalid." }
+        require(SERVER_NAME_PATTERN.matches(serverName)) {
+            "The REALITY server name is invalid."
+        }
 
-        val shortId = query["sid"] ?: query["shortId"].orEmpty()
+        val publicKey = query["pbk"]?.takeIf { it.isNotBlank() }
+            ?: query["publickey"]?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("The REALITY public key (pbk) is missing.")
+        require(REALITY_KEY_PATTERN.matches(publicKey)) {
+            "The REALITY public key is invalid."
+        }
+
+        val shortId = query["sid"] ?: query["shortid"].orEmpty()
         require(SHORT_ID_PATTERN.matches(shortId)) { "The REALITY short ID is invalid." }
 
         val fingerprint = query["fp"]?.takeIf { it.isNotBlank() } ?: "chrome"
@@ -78,13 +109,53 @@ internal object IranVpnProfileParser {
 
         val outbound = JSONObject()
             .put("type", "vless")
-            .put("tag", "proxy")
             .put("server", host)
             .put("server_port", port)
             .put("uuid", uuid)
-            .put("domain_resolver", "dns-remote")
+            .put("domain_resolver", "dns-local")
             .put("tls", tls)
         if (flow.isNotBlank()) outbound.put("flow", flow)
+
+        val name = uri.fragment?.let { runCatching { decode(it) }.getOrNull() }
+            ?.replace(Regex("[\\p{Cntrl}]+"), " ")
+            ?.take(40)
+            ?.takeIf { it.isNotBlank() }
+            ?: host
+
+        return ParsedNode(name, host, port, uuid, outbound)
+    }
+
+    private fun createProfile(
+        nodes: List<ParsedNode>,
+        sourceCount: Int,
+        automaticSelection: Boolean
+    ): IranVpnProfile {
+        val outbounds = JSONArray()
+        val nodeTags = mutableListOf<String>()
+
+        nodes.forEachIndexed { index, node ->
+            val tag = if (automaticSelection) "node-${index + 1}" else "proxy"
+            nodeTags += tag
+            outbounds.put(JSONObject(node.outbound.toString()).put("tag", tag))
+        }
+
+        outbounds.put(JSONObject().put("type", "direct").put("tag", "direct"))
+
+        val finalOutbound = if (automaticSelection) {
+            outbounds.put(
+                JSONObject()
+                    .put("type", "urltest")
+                    .put("tag", "auto")
+                    .put("outbounds", JSONArray(nodeTags))
+                    .put("url", URL_TEST_ENDPOINT)
+                    .put("interval", "90s")
+                    .put("tolerance", 35)
+                    .put("idle_timeout", "5m")
+            )
+            "auto"
+        } else {
+            "proxy"
+        }
 
         val config = JSONObject()
             .put("log", JSONObject().put("level", "info").put("timestamp", true))
@@ -95,13 +166,11 @@ internal object IranVpnProfileParser {
                         "servers",
                         JSONArray().put(
                             JSONObject()
-                                .put("type", "tls")
-                                .put("tag", "dns-remote")
-                                .put("server", "1.1.1.1")
-                                .put("tls", JSONObject().put("enabled", true).put("server_name", "cloudflare-dns.com"))
+                                .put("type", "local")
+                                .put("tag", "dns-local")
                         )
                     )
-                    .put("final", "dns-remote")
+                    .put("final", "dns-local")
                     .put("strategy", "prefer_ipv4")
             )
             .put(
@@ -110,31 +179,34 @@ internal object IranVpnProfileParser {
                     JSONObject()
                         .put("type", "tun")
                         .put("tag", "tun-in")
-                        .put("address", JSONArray().put("172.19.0.1/30").put("fdfe:dcba:9876::1/126"))
+                        .put(
+                            "address",
+                            JSONArray()
+                                .put("172.19.0.1/30")
+                                .put("fdfe:dcba:9876::1/126")
+                        )
                         .put("mtu", 1400)
                         .put("auto_route", true)
                         .put("strict_route", true)
                         .put("stack", "system")
                 )
             )
-            .put(
-                "outbounds",
-                JSONArray()
-                    .put(outbound)
-                    .put(JSONObject().put("type", "direct").put("tag", "direct"))
-            )
+            .put("outbounds", outbounds)
             .put(
                 "route",
                 JSONObject()
                     .put("auto_detect_interface", true)
-                    .put("final", "proxy")
+                    .put("final", finalOutbound)
             )
 
+        val first = nodes.first()
         return IranVpnProfile(
-            name = uri.fragment?.let(::decode)?.takeIf { it.isNotBlank() } ?: host,
-            serverHost = host,
-            serverPort = port,
-            configJson = config.toString()
+            name = if (automaticSelection) "Auto · ${nodes.size} candidates" else first.name,
+            serverHost = if (automaticSelection) "auto" else first.host,
+            serverPort = if (automaticSelection) 0 else first.port,
+            configJson = config.toString(),
+            candidateCount = nodes.size,
+            sourceCount = sourceCount
         )
     }
 
@@ -143,13 +215,26 @@ internal object IranVpnProfileParser {
         return query.split("&").mapNotNull { item ->
             if (item.isBlank()) return@mapNotNull null
             val parts = item.split("=", limit = 2)
-            decode(parts[0]).lowercase() to decode(parts.getOrElse(1) { "" })
+            runCatching {
+                decode(parts[0]).lowercase() to decode(parts.getOrElse(1) { "" })
+            }.getOrNull()
         }.toMap()
     }
 
     private fun decode(value: String): String =
         URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
 
+    private data class ParsedNode(
+        val name: String,
+        val host: String,
+        val port: Int,
+        val uuid: String,
+        val outbound: JSONObject
+    )
+
+    private const val MAX_AUTO_NODES = 100
+    const val URL_TEST_ENDPOINT = "https://cp.cloudflare.com/generate_204"
+    private val SERVER_NAME_PATTERN = Regex("^[A-Za-z0-9.-]{1,253}$")
     private val REALITY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,64}$")
     private val SHORT_ID_PATTERN = Regex("^[A-Fa-f0-9]{0,16}$")
     private val FINGERPRINT_PATTERN = Regex("^[A-Za-z0-9_-]{2,24}$")
