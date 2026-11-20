@@ -91,4 +91,21 @@
     <string name="update_button">App update</string>
     <string name="privacy_short">Free servers are operated by third parties. Do not use them for banking or confidential data.</string>
     <string name="vpn_permission_required">Approve the Android VPN permission prompt to continue.</string>
+
+    <string name="server_selection_title">Choose a server</string>
+    <string name="server_choose_button">Choose server</string>
+    <string name="server_refresh_button">Refresh list</string>
+    <string name="server_auto_option">Best server (automatic)</string>
+    <string name="server_auto_selected">Selected: Best server (automatic). sing-box tests the available candidates and chooses one.</string>
+    <string name="server_manual_selected">Selected manually: %1$s · %2$s:%3$d</string>
+    <string name="server_picker_item">%1$s — %2$s:%3$d</string>
+    <string name="server_list_count">List: %1$d servers from %2$d sources</string>
+    <string name="server_list_empty">No server list yet. Tap Refresh list.</string>
+    <string name="server_selection_not_found">The selected server is no longer in the latest list. Choose another one.</string>
+    <string name="server_connecting_to">Connecting to: %1$s</string>
+    <string name="server_refreshing">Downloading and checking the latest public server list…</string>
+    <string name="server_refresh_success">Updated list: %1$d compatible servers from %2$d sources.</string>
+    <string name="server_refresh_success_toast">%1$d compatible servers added to the list.</string>
+    <string name="server_refresh_failed">Could not refresh servers: %1$s</string>
+    <string name="change_server_disconnect_first">Disconnect the VPN before changing or refreshing servers.</string>
 </resources>
