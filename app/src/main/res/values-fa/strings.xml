@@ -91,5 +91,4 @@
     <string name="update_button">به‌روزرسانی</string>
     <string name="privacy_short">سرورهای رایگان متعلق به اشخاص ثالث هستند؛ برای اطلاعات بانکی و محرمانه استفاده نکنید.</string>
     <string name="vpn_permission_required">لطفاً اجازه اتصال VPN را در پنجره اندروید تأیید کنید.</string>
-    <string name="iran_connected">تونل VPN فعال شد؛ عبور اینترنت را با بازکردن یک سایت بررسی کنید.</string>
 </resources>
