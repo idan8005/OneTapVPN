@@ -244,6 +244,23 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onVpnState(state: String?, message: String?, level: ConnectionStatus?) {
+        // Reattach the screen to a VPN tunnel that survived the Activity/process recreation.
+        if (!connectionRequested && !userRequestedDisconnect &&
+            level == ConnectionStatus.LEVEL_CONNECTED
+        ) {
+            connectionRequested = true
+            tunnelStarted = true
+            watchdogJob?.cancel()
+            mutableState.update {
+                it.copy(
+                    status = VpnStatus.CONNECTED,
+                    isBusy = false,
+                    message = text(R.string.connected_existing_session)
+                )
+            }
+            return
+        }
+
         when (level) {
             ConnectionStatus.LEVEL_CONNECTED -> {
                 if (userRequestedDisconnect || !connectionRequested) return
