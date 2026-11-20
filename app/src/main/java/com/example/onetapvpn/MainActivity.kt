@@ -508,27 +508,19 @@ class MainActivity : AppCompatActivity() {
         }
         detailText.text = when (uiState) {
             UiState.CONNECTED -> {
-                val activeProfile = pendingProfile
-                if (activeProfile == null) {
-                    getString(R.string.iran_connected)
-                } else if (activeProfile.serverHost == "auto") {
-                    val selected = activeAutomaticServer()
-                    if (selected == null) {
-                        getString(R.string.iran_connected_auto_pending, activeProfile.candidateCount)
-                    } else {
-                        getString(
-                            R.string.iran_connected_to_server,
-                            selected.name,
-                            selected.serverHost,
-                            selected.serverPort
-                        )
-                    }
+                val selected = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+                    activeAutomaticServer()
+                } else {
+                    selectedServerProfile()
+                }
+                if (selected == null) {
+                    getString(R.string.iran_connected_auto_pending, pendingProfile?.candidateCount ?: 0)
                 } else {
                     getString(
                         R.string.iran_connected_to_server,
-                        activeProfile.name,
-                        activeProfile.serverHost,
-                        activeProfile.serverPort
+                        selected.name,
+                        selected.serverHost,
+                        selected.serverPort
                     )
                 }
             }
@@ -563,23 +555,72 @@ class MainActivity : AppCompatActivity() {
         return serverProfiles.getOrNull(index) ?: profileStore.readServers().getOrNull(index)
     }
 
+    private fun selectedServerProfile(): IranVpnProfile? =
+        if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+            profileStore.read()
+        } else {
+            serverProfiles.firstOrNull { it.selectionKey == selectedServerKey }
+        }
+
+    private fun updateServerHealth(tag: String, pingMs: Int, speedMbps: Double, status: String) {
+        val index = tag.removePrefix("node-").toIntOrNull()?.minus(1) ?: return
+        val current = serverProfiles.getOrNull(index) ?: return
+        val updated = current.copy(
+            pingMs = pingMs,
+            speedMbps = speedMbps,
+            healthStatus = status
+        )
+        serverProfiles = serverProfiles.toMutableList().also { it[index] = updated }
+        profileStore.saveServerHealth(updated)
+        renderServerSelection()
+    }
+
+    private fun serverHealthLabel(server: IranVpnProfile): String = when {
+        server.healthStatus == "checking" ->
+            getString(R.string.server_health_checking)
+        server.healthStatus == "offline" ->
+            getString(R.string.server_health_offline)
+        server.pingMs > 0 && server.speedMbps > 0.0 ->
+            getString(R.string.server_health_metrics, server.pingMs, server.speedMbps)
+        server.pingMs > 0 ->
+            getString(R.string.server_health_ping_only, server.pingMs)
+        else ->
+            getString(R.string.server_health_not_tested)
+    }
+
+    private fun serverPickerLabel(server: IranVpnProfile): String =
+        getString(
+            R.string.server_picker_item_with_health,
+            server.name,
+            server.serverHost,
+            server.serverPort,
+            serverHealthLabel(server)
+        )
+
     private fun renderServerSelection(message: String? = null) {
         if (!::serverSummaryText.isInitialized) return
         val autoProfile = profileStore.read()
-        val selectedManual = serverProfiles.firstOrNull { it.selectionKey == selectedServerKey }
-        val selectionText = when {
-            selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY ->
-                getString(R.string.server_auto_selected, autoProfile?.candidateCount ?: 0)
-            selectedManual != null ->
-                getString(R.string.server_manual_selected, selectedManual.name, selectedManual.serverHost, selectedManual.serverPort)
-            else -> getString(R.string.server_selection_not_found)
+        val selectedManual = selectedServerProfile()
+        val selectionText = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+            getString(R.string.server_auto_selected, autoProfile?.candidateCount ?: 0)
+        } else if (selectedManual != null) {
+            getString(
+                R.string.server_manual_selected,
+                selectedManual.name,
+                selectedManual.serverHost,
+                selectedManual.serverPort
+            )
+        } else {
+            getString(R.string.server_selection_not_found)
         }
         val listText = if (serverProfiles.isEmpty()) {
             getString(R.string.server_list_empty)
         } else {
-            getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0)
+            val checked = serverProfiles.count { it.pingMs > 0 }
+            getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0) +
+                "\\n" + getString(R.string.server_health_count, checked, serverProfiles.size)
         }
-        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\n")
+        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\\n")
     }
 
     private fun reconcileSelectionAfterRefresh() {
@@ -602,7 +643,7 @@ class MainActivity : AppCompatActivity() {
         val options = buildList {
             add(getString(R.string.server_auto_option))
             serverProfiles.forEach { server ->
-                add(getString(R.string.server_picker_item, server.name, server.serverHost, server.serverPort))
+                add(serverPickerLabel(server))
             }
         }
         val checked = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
