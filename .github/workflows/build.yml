@@ -189,7 +189,7 @@ jobs:
           else
             BASE_VERSION="$(sed -n 's/^val baseVersionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
             [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-            VERSION="v${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
+            VERSION="v${BASE_VERSION}"
           fi
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
