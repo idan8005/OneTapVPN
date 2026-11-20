@@ -86,4 +86,5 @@
     <string name="iran_tunnel_lost">تونل VPN به‌طور غیرمنتظره قطع شد.</string>
     <string name="iran_fallback_message">سرور خودکار نتوانست اتصال اینترنت را تأیید کند.</string>
     <string name="iran_fallback_to_classic">اتصال خودکار ناموفق بود (%1$s). در حال امتحان سرور پشتیبان…</string>
+    <string name="app_version">نسخهٔ %1$s</string>
 </resources>
