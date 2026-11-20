@@ -55,4 +55,9 @@
     <string name="security_notice_title">Public volunteer VPN warning</string>
     <string name="security_notice">Servers are operated by volunteers, not by Raahat VPN. Their speed and availability can change. Do not send passwords or sensitive information through unknown relays.</string>
     <string name="status_busy">Please wait…</string>
+    <string name="server_card_title">Best available server</string>
+    <string name="server_count">%1$d server(s) currently listed</string>
+    <string name="routing_title">Traffic routing</string>
+    <string name="routing_help">Choose which apps should use the VPN tunnel.</string>
+    <string name="update_initial">Check GitHub Releases for a newer Raahat VPN version.</string>
 </resources>
