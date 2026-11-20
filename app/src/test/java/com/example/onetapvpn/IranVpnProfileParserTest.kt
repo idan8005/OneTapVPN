@@ -61,6 +61,10 @@ class IranVpnProfileParserTest {
         assertEquals(2, urlTest.getJSONArray("outbounds").length())
         assertEquals(IranVpnProfileParser.URL_TEST_ENDPOINT, urlTest.getString("url"))
         assertEquals("30s", urlTest.getString("interval"))
+
+        val controller = config.getJSONObject("experimental").getJSONObject("clash_api")
+        assertEquals("127.0.0.1:19090", controller.getString("external_controller"))
+        assertEquals(32, controller.getString("secret").length)
     }
 
     @Test
