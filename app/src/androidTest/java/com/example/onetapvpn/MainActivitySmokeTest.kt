@@ -23,8 +23,8 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.advanced_settings)).assertIsDisplayed()
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.import_file)).assertDoesNotExist()
 
-        composeRule.onNodeWithText(R.string.advanced_settings).performClick()
-        composeRule.onNodeWithText(R.string.import_file).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.advanced_settings)).performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.import_file)).assertIsDisplayed()
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.paste_clipboard)).assertIsDisplayed()
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.export_profile)).assertIsDisplayed()
     }
