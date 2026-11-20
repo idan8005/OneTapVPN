@@ -2,14 +2,14 @@
 <resources>
     <string name="app_name">راحت وی‌پی‌ان</string>
     <string name="app_tagline">سرورهای رایگان · اتصال با یک لمس</string>
-    <string name="connection_title">اتصال VPN رایگان</string>
+    <string name="connection_title">اتصال خودکار VPN</string>
     <string name="status_scanning">در حال جست‌وجوی سرورهای رایگان…</string>
     <string name="status_ready">آماده اتصال</string>
     <string name="status_connecting">در حال اتصال…</string>
     <string name="status_connected">متصل</string>
     <string name="status_disconnected">قطع است</string>
     <string name="status_error">اتصال ناموفق بود</string>
-    <string name="connect">اتصال</string>
+    <string name="connect">اتصال خودکار</string>
     <string name="disconnect">قطع اتصال</string>
     <string name="connection_help">دکمه اتصال را بزنید. بار اول اندروید مجوز VPN را درخواست می‌کند.</string>
     <string name="server_summary_empty">در حال پیدا کردن سریع‌ترین سرور در دسترس…</string>
@@ -75,7 +75,7 @@
     <string name="iran_engine_starting">در حال راه‌اندازی موتور جایگزین VPN…</string>
     <string name="iran_engine_started">موتور شروع شد؛ در حال آزمایش سرورها و انتخاب گزینهٔ پاسخ‌گو.</string>
     <string name="iran_engine_error">اتصال در حالت ایران ناموفق بود: %1$s</string>
-    <string name="iran_profile_missing">ابتدا لینک VLESS + REALITY را وارد کنید.</string>
+    <string name="iran_profile_missing">پروفایل سرور معتبری پیدا نشد؛ منابع عمومی را تازه‌سازی و دوباره امتحان کنید.</string>
     <string name="iran_disconnected">اتصال VPN حالت ایران قطع شد.</string>
     <string name="iran_notification_channel">اتصال VPN حالت ایران</string>
     <string name="iran_vpn_session">راحت VPN · حالت ایران</string>
