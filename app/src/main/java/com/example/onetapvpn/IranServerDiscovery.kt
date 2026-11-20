@@ -59,8 +59,11 @@ internal class IranServerDiscovery {
 
     private fun fetchFirstAvailable(urls: List<String>): String? {
         for (url in urls) {
-            val body = runCatching { download(url) }.getOrNull()
-            if (!body.isNullOrBlank()) return body
+            repeat(2) { attempt ->
+                val body = runCatching { download(url) }.getOrNull()
+                if (!body.isNullOrBlank()) return body
+                if (attempt == 0) Thread.sleep(RETRY_DELAY_MS)
+            }
         }
         return null
     }
@@ -132,9 +135,10 @@ internal class IranServerDiscovery {
     private data class Feed(val mirrors: List<String>)
 
     private companion object {
-        const val CONNECT_TIMEOUT_MS = 6_500
-        const val READ_TIMEOUT_MS = 9_000
+        const val CONNECT_TIMEOUT_MS = 10_000
+        const val READ_TIMEOUT_MS = 15_000
         const val MAX_SOURCE_BYTES = 1_500_000
+        const val RETRY_DELAY_MS = 350L
         const val MAX_INTERLEAVED_CANDIDATES = 160
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
@@ -144,25 +148,33 @@ internal class IranServerDiscovery {
             Feed(
                 listOf(
                     "https://raw.githubusercontent.com/mehrtat/vless-collector/main/vless.txt",
-                    "https://cdn.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt"
+                    "https://cdn.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
+                    "https://fastly.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
+                    "https://gcore.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt"
                 )
             ),
             Feed(
                 listOf(
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
-                    "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt"
+                    "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
+                    "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
+                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt"
                 )
             ),
             Feed(
                 listOf(
                     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best-base64.txt",
-                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt"
+                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
+                    "https://fastly.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
+                    "https://gcore.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt"
                 )
             ),
             Feed(
                 listOf(
                     "https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/v2ray-base64.txt",
-                    "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/v2ray-base64.txt"
+                    "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/v2ray-base64.txt",
+                    "https://fastly.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/v2ray-base64.txt",
+                    "https://gcore.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/v2ray-base64.txt"
                 )
             )
         )
