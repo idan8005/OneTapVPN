@@ -114,6 +114,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
                 val secret = readControllerSecret(config)
                     ?: error("The local server-health controller is not configured.")
+                awaitControllerReady(secret)
                 updateForegroundNotification(getString(R.string.iran_server_health_checking))
                 val healthResults = checkAllServers(secret, config)
                 val available = healthResults.filter { it.pingMs > 0 }
@@ -240,6 +241,20 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             .getJSONObject("clash_api")
             .getString("secret")
     }.getOrNull()
+
+    private suspend fun awaitControllerReady(secret: String) {
+        repeat(CONTROLLER_READY_ATTEMPTS) { attempt ->
+            val ready = runCatching {
+                val selector = callController(secret, "/proxies/proxy")
+                selector.optString("name") == "proxy"
+            }.getOrDefault(false)
+            if (ready) return
+            if (attempt == CONTROLLER_READY_ATTEMPTS - 1) {
+                error("The local VPN controller did not become ready.")
+            }
+            kotlinx.coroutines.delay(CONTROLLER_READY_INTERVAL_MS)
+        }
+    }
 
     private suspend fun checkAllServers(secret: String, config: String): List<ServerHealthResult> {
         val candidates = readServerOutbounds(config)
@@ -376,6 +391,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 }.getOrNull().orEmpty()
                 throw java.io.IOException("Local VPN controller returned HTTP $status. $detail")
             }
+            if (status == HttpURLConnection.HTTP_NO_CONTENT) return JSONObject()
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             if (response.isBlank()) JSONObject() else JSONObject(response)
         } finally {
@@ -871,6 +887,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
         const val CONTROLLER_BASE_URL = "http://127.0.0.1:19090"
         const val CONTROLLER_TIMEOUT_MS = 8_000
+        const val CONTROLLER_READY_ATTEMPTS = 20
+        const val CONTROLLER_READY_INTERVAL_MS = 500L
         const val PING_TEST_URL = "https://cp.cloudflare.com/generate_204"
         const val PING_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
