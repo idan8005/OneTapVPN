@@ -82,4 +82,8 @@
     <string name="iran_disconnected">Iran-mode VPN disconnected.</string>
     <string name="iran_notification_channel">Iran-mode VPN connection</string>
     <string name="iran_vpn_session">Raahat VPN · Iran mode</string>
+    <string name="iran_connected">Tunnel verified: internet traffic is passing through the VPN.</string>
+    <string name="iran_tunnel_lost">The VPN tunnel stopped unexpectedly.</string>
+    <string name="iran_fallback_message">The automatic server could not pass the connectivity test.</string>
+    <string name="iran_fallback_to_classic">Automatic server failed (%1$s). Trying the backup VPN server…</string>
 </resources>
