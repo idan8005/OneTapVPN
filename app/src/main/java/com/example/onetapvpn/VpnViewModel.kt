@@ -169,6 +169,10 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    suspend fun readProfileForExport(): String? = withContext(workerDispatcher) {
+        configStore.read()
+    }
+
     fun onVpnPermissionDenied() {
         _uiState.update {
             it.copy(
