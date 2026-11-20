@@ -640,16 +640,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val orderedServers = serverProfiles.sortedWith(
+            compareByDescending<IranVpnProfile> { it.pingMs > 0 }
+                .thenByDescending { it.speedMbps > 0.0 }
+                .thenByDescending { it.speedMbps }
+                .thenBy { it.pingMs.takeIf { ping -> ping > 0 } ?: Int.MAX_VALUE }
+        )
         val options = buildList {
             add(getString(R.string.server_auto_option))
-            serverProfiles.forEach { server ->
+            orderedServers.forEach { server ->
                 add(serverPickerLabel(server))
             }
         }
         val checked = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
             0
         } else {
-            serverProfiles.indexOfFirst { it.selectionKey == selectedServerKey }
+            orderedServers.indexOfFirst { it.selectionKey == selectedServerKey }
                 .takeIf { it >= 0 }?.plus(1) ?: 0
         }
         AlertDialog.Builder(this)
@@ -658,7 +664,7 @@ class MainActivity : AppCompatActivity() {
                 selectedServerKey = if (which == 0) {
                     IranVpnProfileStore.AUTO_SELECTION_KEY
                 } else {
-                    serverProfiles[which - 1].selectionKey
+                    orderedServers[which - 1].selectionKey
                 }
                 profileStore.saveSelection(selectedServerKey)
                 serverNotice = null
