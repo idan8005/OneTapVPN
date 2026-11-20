@@ -86,4 +86,5 @@
     <string name="iran_tunnel_lost">The VPN tunnel stopped unexpectedly.</string>
     <string name="iran_fallback_message">The automatic server could not pass the connectivity test.</string>
     <string name="iran_fallback_to_classic">Automatic server failed (%1$s). Trying the backup VPN server…</string>
+    <string name="app_version">Version %1$s</string>
 </resources>
