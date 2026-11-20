@@ -159,7 +159,6 @@ internal object IranVpnProfileParser {
         }
 
         outbounds.put(JSONObject().put("type", "direct").put("tag", "direct"))
-        outbounds.put(JSONObject().put("type", "dns").put("tag", "dns-out"))
 
         val selectorOptions = JSONArray()
         if (automaticSelection) {
@@ -235,7 +234,7 @@ internal object IranVpnProfileParser {
                         JSONArray().put(
                             JSONObject()
                                 .put("protocol", "dns")
-                                .put("outbound", "dns-out")
+                                .put("action", "hijack-dns")
                         )
                     )
                     .put("auto_detect_interface", true)
