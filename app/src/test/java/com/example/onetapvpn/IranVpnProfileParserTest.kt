@@ -70,7 +70,7 @@ class IranVpnProfileParserTest {
         assertEquals("tun", inbounds.getJSONObject(0).getString("type"))
         assertEquals("mixed", inbounds.getJSONObject(1).getString("type"))
         val dnsRoute = config.getJSONObject("route").getJSONArray("rules").getJSONObject(0)
-        assertEquals("dns-out", dnsRoute.getString("outbound"))
+        assertEquals("hijack-dns", dnsRoute.getString("action"))
 
 
         val controller = config.getJSONObject("experimental").getJSONObject("clash_api")
