@@ -26,7 +26,7 @@ internal enum class VpnStatus {
 
 internal data class VpnUiState(
     val status: VpnStatus = VpnStatus.SCANNING,
-    val message: String = "Searching for free servers…",
+    val message: String = "",
     val servers: List<VpnServer> = emptyList(),
     val currentServer: VpnServer? = null,
     val isRefreshing: Boolean = false,
@@ -40,7 +40,10 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
     private val routingPreferences = RoutingPreferences(application.applicationContext)
 
     private val mutableState = MutableStateFlow(
-        VpnUiState(routing = routingPreferences.read())
+        VpnUiState(
+            message = application.getString(R.string.status_scanning),
+            routing = routingPreferences.read()
+        )
     )
     val uiState: StateFlow<VpnUiState> = mutableState.asStateFlow()
 
@@ -71,7 +74,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 isRefreshing = true,
                 status = if (it.servers.isEmpty()) VpnStatus.SCANNING else it.status,
-                message = "Refreshing free VPN Gate servers…"
+                message = text(R.string.server_refreshing)
             )
         }
 
@@ -82,7 +85,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                 mutableState.update { state ->
                     state.copy(
                         status = if (state.status == VpnStatus.CONNECTED) VpnStatus.CONNECTED else VpnStatus.READY,
-                        message = "Found ${fetched.size} free server candidates. Fastest-ranked server selected.",
+                        message = text(R.string.server_ready_count, fetched.size),
                         servers = fetched,
                         currentServer = if (state.status == VpnStatus.CONNECTED) {
                             state.currentServer
@@ -100,11 +103,11 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                     ?.replace(Regex("[\\r\\n\\t]+"), " ")
                     ?.take(180)
                     ?.takeIf { it.isNotBlank() }
-                    ?: "Could not load free servers."
+                    ?: text(R.string.status_error)
                 mutableState.update {
                     it.copy(
                         status = if (it.servers.isEmpty()) VpnStatus.ERROR else it.status,
-                        message = description,
+                        message = text(R.string.server_load_failed, description),
                         isRefreshing = false
                     )
                 }
@@ -117,7 +120,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         val current = mutableState.value
         if (current.status == VpnStatus.CONNECTED || current.status == VpnStatus.CONNECTING) {
             mutableState.update {
-                it.copy(message = "Disconnect before changing app-routing settings.")
+                it.copy(message = text(R.string.change_routing_disconnect_first))
             }
             return
         }
@@ -127,9 +130,11 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 routing = settings,
                 message = when (settings.mode) {
-                    RoutingMode.FULL_TUNNEL -> "Full tunnel: all apps will use the VPN."
-                    RoutingMode.SELECTED_APPS ->
-                        "${settings.selectedPackages.size} selected app(s) will use the VPN."
+                    RoutingMode.FULL_TUNNEL -> text(R.string.full_tunnel_description)
+                    RoutingMode.SELECTED_APPS -> text(
+                        R.string.choose_apps_count,
+                        settings.selectedPackages.size
+                    )
                 }
             )
         }
@@ -143,7 +148,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             state.routing.selectedPackages.isEmpty()
         ) {
             mutableState.update {
-                it.copy(status = VpnStatus.READY, message = "Choose at least one app first.")
+                it.copy(status = VpnStatus.READY, message = text(R.string.choose_app_before_connect))
             }
             return
         }
@@ -153,7 +158,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
 
         if (state.servers.isEmpty()) {
             mutableState.update {
-                it.copy(status = VpnStatus.SCANNING, message = "Loading free servers before connecting…")
+                it.copy(status = VpnStatus.SCANNING, message = text(R.string.status_scanning))
             }
             refreshServers()
             return
@@ -165,7 +170,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         if (!connectionRequested || candidateServers.isEmpty()) return
         generation++
         nextCandidateIndex = 0
-        startNextServer("Selecting the fastest available candidate…", generation)
+        startNextServer(text(R.string.reason_first_server), generation)
     }
 
     private fun startNextServer(reason: String, expectedGeneration: Int = generation) {
@@ -183,7 +188,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                 it.copy(
                     status = VpnStatus.ERROR,
                     isBusy = false,
-                    message = "No VPN Gate server connected. Refresh the list and try again."
+                    message = text(R.string.no_server_connected)
                 )
             }
             return
@@ -199,7 +204,14 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                 status = VpnStatus.CONNECTING,
                 currentServer = server,
                 isBusy = true,
-                message = "${server.country} · ${server.pingMs} ms · trying server $attemptNumber/${candidateServers.size}"
+                message = text(
+                    R.string.server_attempt_format,
+                    reason,
+                    server.country,
+                    server.pingMs,
+                    attemptNumber,
+                    candidateServers.size
+                )
             )
         }
 
@@ -214,7 +226,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             switchingServer = false
             val launched = vpnManager.start(server, mutableState.value.routing)
             if (!launched) {
-                startNextServer("The server profile could not be started.", expectedGeneration)
+                startNextServer(text(R.string.reason_server_invalid), expectedGeneration)
                 return@launch
             }
 
@@ -225,7 +237,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                     mutableState.value.status == VpnStatus.CONNECTING &&
                     expectedGeneration == generation
                 ) {
-                    startNextServer("The server did not finish connecting in time.", expectedGeneration)
+                    startNextServer(text(R.string.reason_server_timeout), expectedGeneration)
                 }
             }
         }
@@ -241,7 +253,10 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                     it.copy(
                         status = VpnStatus.CONNECTED,
                         isBusy = false,
-                        message = "Connected · ${it.currentServer?.country ?: "VPN Gate"}"
+                        message = text(
+                            R.string.connected_to_country,
+                            it.currentServer?.country ?: text(R.string.app_name)
+                        )
                     )
                 }
             }
@@ -250,7 +265,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                 if (connectionRequested && !switchingServer &&
                     mutableState.value.status == VpnStatus.CONNECTING
                 ) {
-                    startNextServer("VPN Gate rejected this server's connection.")
+                    startNextServer(text(R.string.reason_server_rejected))
                 }
             }
 
@@ -270,10 +285,10 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
                     userRequestedDisconnect -> Unit
                     mutableState.value.status == VpnStatus.CONNECTED -> {
                         connectionRequested = true
-                        startNextServer("The active server disconnected. Trying another free server.")
+                        startNextServer(text(R.string.reason_server_dropped))
                     }
                     connectionRequested && attemptSawProgress -> {
-                        startNextServer("This server disconnected before the VPN tunnel was ready.")
+                        startNextServer(text(R.string.reason_server_dropped))
                     }
                 }
             }
@@ -297,7 +312,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 status = VpnStatus.DISCONNECTED,
                 isBusy = false,
-                message = "VPN disconnected."
+                message = text(R.string.vpn_disconnected)
             )
         }
     }
@@ -312,10 +327,13 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 status = VpnStatus.DISCONNECTED,
                 isBusy = false,
-                message = "Android VPN permission was not approved."
+                message = text(R.string.vpn_permission_denied)
             )
         }
     }
+
+    private fun text(resourceId: Int, vararg arguments: Any): String =
+        getApplication<Application>().getString(resourceId, *arguments)
 
     override fun onCleared() {
         watchdogJob?.cancel()
