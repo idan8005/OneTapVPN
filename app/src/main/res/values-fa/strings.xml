@@ -5,6 +5,7 @@
     <string name="connection_title">اتصال سریع VPN</string>
     <string name="status_disconnected">متصل نیست</string>
     <string name="status_connecting">در حال اتصال…</string>
+    <string name="status_finding_server">در حال انتخاب سریع‌ترین سرور…</string>
     <string name="status_connected">متصل شد</string>
     <string name="status_disconnecting">در حال قطع اتصال…</string>
     <string name="status_error">مشکل در اتصال</string>
