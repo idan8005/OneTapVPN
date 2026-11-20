@@ -1,6 +1,6 @@
 # راحت وی‌پی‌ان | Raahat VPN
 
-A Persian-first Android VPN client with two separate connection engines: OpenVPN for public VPN Gate relays, and sing-box for user-supplied VLESS + REALITY links. **WireGuard is not used.**
+A Persian-first Android VPN client with two connection engines: OpenVPN for public VPN Gate relays, and sing-box for automatically discovered VLESS + REALITY servers. **WireGuard is not used.**
 
 ## Features
 
@@ -16,27 +16,39 @@ A Persian-first Android VPN client with two separate connection engines: OpenVPN
 - **In-app update:** checks the latest GitHub Release, downloads the APK,
   verifies its SHA-256 checksum, and opens the Android package installer.
 - **Persian and English UI.**
-- **Iran compatibility mode:** import a VLESS + REALITY TCP link and run it through the sing-box Android engine.
+- **Automatic Iran server discovery:** checks three public feeds, filters VLESS + REALITY TCP/RAW profiles and builds an automatic sing-box URL-test group.
+- **Automatic candidate selection:** sing-box tests candidates through the phone's current network and selects the fastest responsive node, then re-tests periodically.
 
-## Iran compatibility mode
+## Automatic Iran connection
 
-The Iran mode uses the sing-box Android library and accepts a user-supplied
-VLESS + REALITY share link. In this version the link must use TCP and include
-a valid UUID, `security=reality`, `sni`, `pbk` and `sid`; an optional
-`fp` and `flow=xtls-rprx-vision` are supported. WebSocket and gRPC links
-are not accepted by this parser yet.
+The Iran mode requires no manually pasted server link. On app launch, it checks
+several public feeds and their CDN mirrors, extracts VLESS + REALITY profiles,
+filters malformed or unsupported entries, removes duplicates and keeps up to
+100 candidates. The feed sources currently include:
 
-Import the link in the **Iran compatibility mode** card, then tap
-**Connect with Iran mode** and approve Android's VPN permission. The profile
-is stored in the app's private local preferences. It is not uploaded by the
-app. Selective-app routing uses the same list of chosen Android packages;
-leaving the selection empty uses full-tunnel routing.
+- `mehrtat/vless-collector` (plain VLESS feed)
+- `0xRadikal/Free-v2ray-Configs` (verified public configurations)
+- `Au1rxx/free-vpn-subscriptions` (base64 subscription feed)
 
-This adds a protocol option that may work on networks where the current
-VPN Gate/OpenVPN path is blocked. It does **not** guarantee that Iran's
-carriers or filtering systems will allow a particular server. A working
-VLESS + REALITY server is required; this build does not supply a free server
-subscription or promise automatic discovery of public VLESS servers.
+The app builds a sing-box `urltest` group. Health checks are performed by the
+sing-box engine through the phone's current network, not by trusting latency
+values reported by a remote list. The selected node is re-tested periodically;
+when the network changes or a candidate stops responding, sing-box can select
+another candidate. The candidate list is refreshed after 20 minutes, or
+manually from **Find and refresh servers**.
+
+Tap the main **Connect** button to use automatic Iran mode. Android's VPN
+permission is required the first time. **Use classic VPN Gate servers** remains
+available as a separate fallback. Full-tunnel and selected-app routing are
+supported by both modes.
+
+Public feeds and free nodes are untrusted and can disappear at any time. The
+feed maintainers and server operators are independent third parties; Raahat VPN
+does not operate or audit their infrastructure. A node can pass a connection
+test and still be slow, unstable or unsafe. Do not use public relays for
+banking, passwords, private work or other sensitive traffic. Automatic
+discovery does not guarantee that any particular node will be reachable from
+every Iranian carrier or Wi-Fi provider.
 
 ## Important: free volunteer servers
 
@@ -59,8 +71,8 @@ https://www.vpngate.net/en/about_abuse.aspx
 4. In selected-app mode, choose at least one app.
 5. Tap **اتصال** and approve Android's VPN permission prompt.
 
-The first server list refresh requires internet access. If the first server is
-unreachable, the app automatically tries another ranked candidate.
+Server discovery requires access to at least one public feed or CDN mirror. The
+app attempts more than one source and caches the last successful candidate set.
 
 Android requires the user to approve VPN access on first connection. Android
 also controls the final APK installation confirmation during an update; a
@@ -100,7 +112,7 @@ To publish a version for the in-app updater:
    release endpoint. The current repository is private, so normal app
    installations cannot read its GitHub Releases API without authentication.
 2. Configure the four Release signing secrets.
-3. Push a version tag such as `v1.4.0`.
+3. Push a version tag such as `v1.5.0`.
 4. The workflow builds, signs, verifies and publishes
    `raahat-vpn.apk` and `raahat-vpn.apk.sha256` to the GitHub Release.
 
@@ -114,7 +126,8 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 - `app/`: application UI, server discovery, routing choices and updater.
 - `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
 - `IranVpnService.kt`: Android VPN service for the optional sing-box engine.
-- `IranVpnProfile.kt`: parser for user-provided VLESS + REALITY TCP links.
+- `IranVpnProfile.kt`: strict VLESS + REALITY parser and sing-box URL-test builder.
+- `IranServerDiscovery.kt`: multi-source public feed discovery with CDN fallback.
 - `VpnGateApi.kt`: public directory fetch and server ranking.
 - `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
 - `VpnViewModel.kt`: connection state and automatic server failover.
