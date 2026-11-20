@@ -43,6 +43,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var detailText: TextView
     private lateinit var routeText: TextView
+    private lateinit var serverSummaryText: TextView
+    private lateinit var serverSelectButton: MaterialButton
+    private lateinit var serverRefreshButton: MaterialButton
     private lateinit var connectButton: MaterialButton
     private lateinit var updateButton: MaterialButton
     private lateinit var updateText: TextView
@@ -55,10 +58,13 @@ class MainActivity : AppCompatActivity() {
     private val updater by lazy { AppUpdater(applicationContext) }
 
     private var routing = RoutingSettings()
+    private var serverProfiles: List<IranVpnProfile> = emptyList()
+    private var selectedServerKey: String = IranVpnProfileStore.AUTO_SELECTION_KEY
     private var uiState = UiState.IDLE
     private var connectionRequested = false
     private var connectionMessage = ""
     private var discoveryJob: Job? = null
+    private var serverRefreshJob: Job? = null
     private var updateJob: Job? = null
     private var pendingInstallFile: File? = null
     private var pendingProfile: IranVpnProfile? = null
@@ -112,6 +118,8 @@ class MainActivity : AppCompatActivity() {
         window.decorView.systemUiVisibility = 0
 
         routing = routingPreferences.read()
+        serverProfiles = profileStore.readServers()
+        selectedServerKey = profileStore.readSelectionKey()
         setContentView(createContent())
         registerStatusReceiver()
         updateCachedProfileSummary()
@@ -131,6 +139,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         if (receiverRegistered) unregisterReceiver(statusReceiver)
         discoveryJob?.cancel()
+        serverRefreshJob?.cancel()
         updateJob?.cancel()
         super.onDestroy()
     }
@@ -172,6 +181,37 @@ class MainActivity : AppCompatActivity() {
             }
         )
         content.addView(header, matchWrap())
+
+        val serverCard = card(Color.rgb(19, 32, 53), Color.rgb(43, 64, 92))
+        val serverPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+        serverPanel.addView(
+            label(getString(R.string.server_selection_title), 14f, Color.WHITE, Typeface.BOLD)
+        )
+        serverSummaryText = label("", 13f, Color.rgb(164, 184, 211)).apply {
+            setPadding(0, dp(8), 0, dp(10))
+        }
+        serverPanel.addView(serverSummaryText, matchWrap())
+        val serverActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        serverSelectButton = outlinedButton(getString(R.string.server_choose_button)) {
+            openServerPicker()
+        }
+        serverActions.addView(serverSelectButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            marginEnd = dp(6)
+        })
+        serverRefreshButton = outlinedButton(getString(R.string.server_refresh_button)) {
+            refreshServers()
+        }
+        serverActions.addView(serverRefreshButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            marginStart = dp(6)
+        })
+        serverPanel.addView(serverActions, matchWrap())
+        serverCard.addView(serverPanel)
+        content.addView(serverCard, matchWrap().apply { topMargin = dp(22) })
 
         val connectionCard = card(Color.rgb(19, 32, 53), Color.rgb(43, 64, 92))
         val panel = LinearLayout(this).apply {
@@ -218,6 +258,7 @@ class MainActivity : AppCompatActivity() {
         connectionCard.addView(panel)
         content.addView(connectionCard, matchWrap().apply { topMargin = dp(28) })
 
+        renderServerSelection()
         routeText = label("", 12f, Color.rgb(145, 166, 195)).apply {
             gravity = Gravity.CENTER
         }
@@ -301,25 +342,27 @@ class MainActivity : AppCompatActivity() {
         discoveryJob?.cancel()
         discoveryJob = lifecycleScope.launch {
             try {
-                val cached = profileStore.read()
-                val profile = if (cached != null && !profileStore.isStale()) {
-                    cached
-                } else {
+                var profile = profileStore.selectedProfile()
+                val mustRefresh = profile == null || profileStore.isStale() || serverProfiles.isEmpty()
+                if (mustRefresh) {
                     val result = withContext(Dispatchers.IO) { discovery.discover() }
-                    profileStore.save(result.profile)
-                    result.profile
+                    profileStore.saveDiscovery(result.profile, result.servers)
+                    serverProfiles = result.servers
+                    reconcileSelectionAfterRefresh()
+                    profile = profileStore.selectedProfile()
+                    renderServerSelection()
                 }
 
                 if (!connectionRequested) return@launch
-                connectionMessage = getString(
-                    R.string.iran_profile_loaded,
-                    profile.candidateCount,
-                    profile.sourceCount
-                )
-                requestVpnPermission()
+                if (profile == null) {
+                    failConnection(getString(R.string.iran_profile_missing))
+                    return@launch
+                }
+                connectionMessage = getString(R.string.server_connecting_to, profile.name)
+                requestVpnPermission(profile)
             } catch (error: Exception) {
-                val cached = profileStore.read()
                 if (!connectionRequested) return@launch
+                val cached = profileStore.selectedProfile()
                 if (cached != null) {
                     connectionMessage = getString(
                         R.string.iran_discovery_fallback,
@@ -341,7 +384,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestVpnPermission(profileOverride: IranVpnProfile? = null) {
         if (!connectionRequested) return
-        pendingProfile = profileOverride ?: profileStore.read()
+        pendingProfile = profileOverride ?: profileStore.selectedProfile()
         if (pendingProfile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
@@ -367,7 +410,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         uiState = UiState.CONNECTING
-        connectionMessage = getString(R.string.iran_engine_starting)
+        connectionMessage = getString(R.string.server_connecting_to, profile.name)
         render()
 
         val packages = if (routing.mode == RoutingMode.SELECTED_APPS) {
@@ -399,12 +442,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateCachedProfileSummary() {
-        val profile = profileStore.read()
+        val profile = profileStore.selectedProfile()
         connectionMessage = if (profile != null) {
-            getString(R.string.iran_profile_loaded, profile.candidateCount, profile.sourceCount)
+            getString(R.string.server_connecting_to, profile.name)
         } else {
             getString(R.string.connection_help)
         }
+        renderServerSelection()
     }
 
     private fun render() {
@@ -431,10 +475,125 @@ class MainActivity : AppCompatActivity() {
             if (isActive) Color.rgb(177, 60, 69) else Color.rgb(29, 139, 103)
         )
 
+        val controlsAvailable = uiState == UiState.IDLE || uiState == UiState.ERROR
+        serverSelectButton.isEnabled = controlsAvailable
+        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true
         routeText.text = when (routing.mode) {
             RoutingMode.FULL_TUNNEL -> getString(R.string.full_tunnel_description)
             RoutingMode.SELECTED_APPS -> getString(R.string.selected_apps_description) +
                 " " + getString(R.string.choose_apps_count, routing.selectedPackages.size)
+        }
+    }
+
+    private fun renderServerSelection(message: String? = null) {
+        if (!::serverSummaryText.isInitialized) return
+        val autoProfile = profileStore.read()
+        val selectedManual = serverProfiles.firstOrNull { it.selectionKey == selectedServerKey }
+        val selectionText = when {
+            selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY ->
+                getString(R.string.server_auto_selected, autoProfile?.candidateCount ?: 0)
+            selectedManual != null ->
+                getString(R.string.server_manual_selected, selectedManual.name, selectedManual.serverHost, selectedManual.serverPort)
+            else -> getString(R.string.server_selection_not_found)
+        }
+        val listText = if (serverProfiles.isEmpty()) {
+            getString(R.string.server_list_empty)
+        } else {
+            getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0)
+        }
+        serverSummaryText.text = listOfNotNull(message, selectionText, listText).joinToString("\\n")
+    }
+
+    private fun reconcileSelectionAfterRefresh() {
+        if (selectedServerKey != IranVpnProfileStore.AUTO_SELECTION_KEY &&
+            serverProfiles.none { it.selectionKey == selectedServerKey }
+        ) {
+            selectedServerKey = IranVpnProfileStore.AUTO_SELECTION_KEY
+            profileStore.saveSelection(selectedServerKey)
+        }
+    }
+
+    private fun openServerPicker() {
+        if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
+            uiState == UiState.DISCOVERING || serverRefreshJob?.isActive == true
+        ) {
+            Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val options = buildList {
+            add(getString(R.string.server_auto_option))
+            serverProfiles.forEach { server ->
+                add(getString(R.string.server_picker_item, server.name, server.serverHost, server.serverPort))
+            }
+        }
+        val checked = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+            0
+        } else {
+            serverProfiles.indexOfFirst { it.selectionKey == selectedServerKey }
+                .takeIf { it >= 0 }?.plus(1) ?: 0
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.server_selection_title)
+            .setSingleChoiceItems(options.toTypedArray(), checked) { dialog, which ->
+                selectedServerKey = if (which == 0) {
+                    IranVpnProfileStore.AUTO_SELECTION_KEY
+                } else {
+                    serverProfiles[which - 1].selectionKey
+                }
+                profileStore.saveSelection(selectedServerKey)
+                renderServerSelection()
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.choose_apps_cancel, null)
+            .show()
+    }
+
+    private fun refreshServers() {
+        if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
+            uiState == UiState.DISCOVERING
+        ) {
+            Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (serverRefreshJob?.isActive == true) return
+
+        serverRefreshButton.isEnabled = false
+        serverSummaryText.text = getString(R.string.server_refreshing)
+        serverRefreshJob = lifecycleScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { discovery.discover() }
+                profileStore.saveDiscovery(result.profile, result.servers)
+                serverProfiles = result.servers
+                reconcileSelectionAfterRefresh()
+                renderServerSelection(
+                    getString(R.string.server_refresh_success, result.servers.size, result.sourceCount)
+                )
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.server_refresh_success_toast, result.servers.size),
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (error: Exception) {
+                renderServerSelection(
+                    getString(
+                        R.string.server_refresh_failed,
+                        error.localizedMessage ?: getString(R.string.status_error)
+                    )
+                )
+            } finally {
+                serverRefreshJob = null
+                render()
+                renderServerSelectionIfAvailable()
+            }
+        }
+    }
+
+    private fun renderServerSelectionIfAvailable() {
+        if (::serverSummaryText.isInitialized &&
+            !serverSummaryText.text.toString().contains(getString(R.string.server_refresh_failed))
+        ) {
+            renderServerSelection()
         }
     }
 
