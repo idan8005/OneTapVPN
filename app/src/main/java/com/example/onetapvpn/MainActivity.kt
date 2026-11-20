@@ -482,15 +482,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onVpnGateButtonPressed() {
-        if (iranModeActive) {
-            iranVpnManager.stop()
-            iranModeActive = false
-        }
-        val permissionIntent = VpnService.prepare(this)
-        if (permissionIntent == null) {
-            viewModel.connect()
-        } else {
-            vpnPermissionLauncher.launch(permissionIntent)
+        lifecycleScope.launch {
+            if (iranModeActive) {
+                iranVpnManager.stop()
+                iranModeActive = false
+                delay(900L)
+            }
+            if (latestState.status == VpnStatus.CONNECTED ||
+                latestState.status == VpnStatus.CONNECTING
+            ) {
+                viewModel.disconnect()
+                delay(500L)
+            }
+            val permissionIntent = VpnService.prepare(this@MainActivity)
+            if (permissionIntent == null) {
+                viewModel.connect()
+            } else {
+                vpnPermissionLauncher.launch(permissionIntent)
+            }
         }
     }
 
@@ -555,6 +564,9 @@ class MainActivity : AppCompatActivity() {
             VpnStatus.ERROR -> getString(R.string.status_error)
         }
         detailText.text = state.message
+        if (iranDiscoveryJob?.isActive == true) {
+            detailText.text = iranProfileStatusText.text
+        }
         connectProgress.visibility = if (
             state.status == VpnStatus.SCANNING ||
             state.status == VpnStatus.CONNECTING ||
