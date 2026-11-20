@@ -124,7 +124,7 @@ jobs:
           echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require release signing for published update channels
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/feature/iran-singbox-mode'))
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
         env:
           SIGNING_CONFIGURED: ${{ steps.release_signing.outputs.configured }}
         run: |
