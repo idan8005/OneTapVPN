@@ -92,6 +92,16 @@ class MainActivity : AppCompatActivity() {
                 ?.takeIf { it.isNotBlank() }
                 ?.let { activeServerTag = it }
 
+            if (state == IranVpnContract.STATE_SERVER_HEALTH) {
+                updateServerHealth(
+                    intent.getStringExtra(IranVpnContract.EXTRA_SERVER_TAG).orEmpty(),
+                    intent.getIntExtra(IranVpnContract.EXTRA_PING_MS, -1),
+                    intent.getDoubleExtra(IranVpnContract.EXTRA_SPEED_MBPS, -1.0),
+                    intent.getStringExtra(IranVpnContract.EXTRA_HEALTH_STATUS).orEmpty()
+                )
+                return
+            }
+
             when (state) {
                 IranVpnContract.STATE_CONNECTED -> {
                     if (!connectionRequested) {
@@ -344,7 +354,7 @@ class MainActivity : AppCompatActivity() {
         connectionRequested = true
         activeServerTag = null
         uiState = UiState.DISCOVERING
-        val currentSelection = profileStore.selectedProfile()
+        val currentSelection = selectedServerProfile()
         connectionMessage = if (
             currentSelection != null && !profileStore.isStale() && serverProfiles.isNotEmpty()
         ) {
@@ -357,14 +367,14 @@ class MainActivity : AppCompatActivity() {
         discoveryJob?.cancel()
         discoveryJob = lifecycleScope.launch {
             try {
-                var profile = profileStore.selectedProfile()
+                var profile = profileStore.read()
                 val mustRefresh = profile == null || profileStore.isStale() || serverProfiles.isEmpty()
                 if (mustRefresh) {
                     val result = withContext(Dispatchers.IO) { discovery.discover() }
                     profileStore.saveDiscovery(result.profile, result.servers)
                     serverProfiles = result.servers
                     reconcileSelectionAfterRefresh()
-                    profile = profileStore.selectedProfile()
+                    profile = profileStore.read()
                     renderServerSelection()
                 }
 
@@ -373,12 +383,17 @@ class MainActivity : AppCompatActivity() {
                     failConnection(getString(R.string.iran_profile_missing))
                     return@launch
                 }
-                connectionMessage = getString(R.string.server_connecting_to, profile.name)
+                val target = selectedServerProfile()
+                connectionMessage = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+                    getString(R.string.iran_server_health_checking)
+                } else {
+                    getString(R.string.server_connecting_to, target?.name ?: profile.name)
+                }
                 requestVpnPermission(profile)
             } catch (error: Exception) {
                 if (!connectionRequested) return@launch
-                val cached = profileStore.selectedProfile()
-                if (cached != null) {
+                val cached = profileStore.read()
+                if (cached != null && serverProfiles.isNotEmpty()) {
                     connectionMessage = getString(
                         R.string.iran_discovery_fallback,
                         cached.candidateCount,
@@ -399,7 +414,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestVpnPermission(profileOverride: IranVpnProfile? = null) {
         if (!connectionRequested) return
-        pendingProfile = profileOverride ?: profileStore.selectedProfile()
+        pendingProfile = profileOverride ?: profileStore.read()
         if (pendingProfile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
@@ -418,14 +433,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTunnel() {
         if (!connectionRequested) return
-        val profile = pendingProfile ?: profileStore.selectedProfile()
+        val profile = pendingProfile ?: profileStore.read()
         if (profile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
         }
 
+        val selectedOutboundTag = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
+            "auto"
+        } else {
+            val index = serverProfiles.indexOfFirst { it.selectionKey == selectedServerKey }
+            if (index < 0) {
+                failConnection(getString(R.string.server_selection_not_found))
+                return
+            }
+            "node-${index + 1}"
+        }
+
         uiState = UiState.CONNECTING
-        connectionMessage = getString(R.string.server_connecting_to, profile.name)
+        connectionMessage = if (selectedOutboundTag == "auto") {
+            getString(R.string.iran_server_health_checking)
+        } else {
+            val chosen = selectedServerProfile()
+            getString(R.string.server_connecting_to, chosen?.name ?: profile.name)
+        }
         render()
 
         val packages = if (routing.mode == RoutingMode.SELECTED_APPS) {
@@ -433,7 +464,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             emptySet()
         }
-        if (!vpnManager.start(profile, packages)) {
+        if (!vpnManager.start(profile, packages, selectedOutboundTag)) {
             failConnection(getString(R.string.status_error))
         }
     }
