@@ -9,15 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,9 +106,7 @@ internal fun RaahatScreen(
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
-                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
-                .verticalScroll(rememberScrollState())
+                                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
