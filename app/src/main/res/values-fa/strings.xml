@@ -82,4 +82,8 @@
     <string name="iran_disconnected">اتصال VPN حالت ایران قطع شد.</string>
     <string name="iran_notification_channel">اتصال VPN حالت ایران</string>
     <string name="iran_vpn_session">راحت VPN · حالت ایران</string>
+    <string name="iran_connected">تونل بررسی شد؛ اینترنت از طریق VPN عبور می‌کند.</string>
+    <string name="iran_tunnel_lost">تونل VPN به‌طور غیرمنتظره قطع شد.</string>
+    <string name="iran_fallback_message">سرور خودکار نتوانست اتصال اینترنت را تأیید کند.</string>
+    <string name="iran_fallback_to_classic">اتصال خودکار ناموفق بود (%1$s). در حال امتحان سرور پشتیبان…</string>
 </resources>
