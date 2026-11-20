@@ -542,11 +542,10 @@ class MainActivity : AppCompatActivity() {
         }
         detailText.text = when (uiState) {
             UiState.CONNECTED -> {
-                val selected = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
-                    activeAutomaticServer()
-                } else {
-                    selectedServerProfile()
-                }
+                val selected = activeAutomaticServer()
+                    ?: selectedServerProfile()?.takeIf {
+                        selectedServerKey != IranVpnProfileStore.AUTO_SELECTION_KEY
+                    }
                 if (selected == null) {
                     getString(R.string.iran_connected_auto_pending, pendingProfile?.candidateCount ?: 0)
                 } else {
