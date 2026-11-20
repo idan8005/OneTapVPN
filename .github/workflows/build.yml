@@ -1,8 +1,9 @@
-name: Build, test and sign Raahat VPN
+name: Build, test and release Raahat VPN
 
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -17,23 +18,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: raahatvpn-android-apk-${{ github.ref }}
+  group: raahatvpn-android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     name: Test and build Android APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
-      - name: Checkout source
+      - name: Checkout source and OpenVPN submodule
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -48,7 +51,7 @@ jobs:
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: "8.7"
 
       - name: Run Android lint
         run: gradle --no-daemon :app:lintDebug
@@ -84,11 +87,11 @@ jobs:
           set -euo pipefail
           if [[ -z "${ANDROID_KEYSTORE_BASE64}" || -z "${ANDROID_KEYSTORE_PASSWORD}" || -z "${ANDROID_KEY_ALIAS}" || -z "${ANDROID_KEY_PASSWORD}" ]]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "Release signing secrets are not configured. Debug build and tests completed; signed Release APK was skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "Stable release signing secrets are not configured. Debug APK is available; signed releases are disabled." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          KEYSTORE_PATH="$RUNNER_TEMP/onetapvpn-release.jks"
+          KEYSTORE_PATH="$RUNNER_TEMP/raahatvpn-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
@@ -96,6 +99,16 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "configured=true" >> "$GITHUB_OUTPUT"
           echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require release signing for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SIGNING_CONFIGURED: ${{ steps.release_signing.outputs.configured }}
+        run: |
+          test "$SIGNING_CONFIGURED" = "true" || {
+            echo "A stable release signing key is required for tagged releases." >&2
+            exit 1
+          }
 
       - name: Build signed Release APK
         if: steps.release_signing.outputs.configured == 'true'
@@ -113,17 +126,18 @@ jobs:
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$APK" | tee release-signature.txt
-          sha256sum "$APK" > app-release.apk.sha256
+          cp "$APK" raahat-vpn.apk
+          sha256sum raahat-vpn.apk > raahat-vpn.apk.sha256
           echo "Signed Release APK verified successfully." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish signed Release APK
+      - name: Publish signed Release artifact
         if: steps.release_signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: RaahatVPN-Release-1.3.0
+          name: RaahatVPN-Release-1.4.0
           path: |
-            app/build/outputs/apk/release/app-release.apk
-            app-release.apk.sha256
+            raahat-vpn.apk
+            raahat-vpn.apk.sha256
             release-signature.txt
           if-no-files-found: error
           retention-days: 30
@@ -149,4 +163,27 @@ jobs:
 
       - name: Report optional emulator test result
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_emulator_test
-        run: echo "The emulator smoke test is optional and does not block APK publication. Physical-device testing is still required."
+        run: echo "The emulator smoke test does not replace testing on a physical Android phone."
+
+  publish_release:
+    name: Publish versioned GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: RaahatVPN-Release-1.4.0
+          path: release
+
+      - name: Publish APK and checksum
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Raahat VPN ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/raahat-vpn.apk
+            release/raahat-vpn.apk.sha256
