@@ -2,14 +2,14 @@
 <resources>
     <string name="app_name">Raahat VPN</string>
     <string name="app_tagline">Free servers · One-tap connection</string>
-    <string name="connection_title">FREE VPN CONNECTION</string>
+    <string name="connection_title">AUTOMATIC VPN CONNECTION</string>
     <string name="status_scanning">Searching for free servers…</string>
     <string name="status_ready">Ready to connect</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Connection failed</string>
-    <string name="connect">Connect</string>
+    <string name="connect">Auto connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="connection_help">Tap Connect. Android will ask for VPN permission the first time.</string>
     <string name="server_summary_empty">Finding the fastest available server…</string>
@@ -75,7 +75,7 @@
     <string name="iran_engine_starting">Starting the alternative VPN engine…</string>
     <string name="iran_engine_started">Engine started; testing servers and selecting a responsive candidate.</string>
     <string name="iran_engine_error">Iran-mode connection failed: %1$s</string>
-    <string name="iran_profile_missing">Import a VLESS + REALITY link before connecting.</string>
+    <string name="iran_profile_missing">No valid automatic server profile is available. Refresh public sources and try again.</string>
     <string name="iran_disconnected">Iran-mode VPN disconnected.</string>
     <string name="iran_notification_channel">Iran-mode VPN connection</string>
     <string name="iran_vpn_session">Raahat VPN · Iran mode</string>
