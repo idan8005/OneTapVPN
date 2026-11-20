@@ -445,7 +445,10 @@ class MainActivity : AppCompatActivity() {
         updateJob = lifecycleScope.launch {
             try {
                 when (val result = withContext(Dispatchers.IO) { appUpdater.checkForUpdate() }) {
-                    UpdateCheck.Current -> updateText.text = getString(R.string.update_current)
+                    UpdateCheck.Current -> {
+                        updateText.text = getString(R.string.update_current)
+                        checkUpdateButton.isEnabled = true
+                    }
                     is UpdateCheck.Available -> {
                         updateText.text = getString(R.string.update_available, result.release.versionName)
                         downloadAvailableUpdate(result.release)
