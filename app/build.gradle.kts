@@ -20,6 +20,7 @@ val releaseSigningConfigured =
 android {
     namespace = "com.example.onetapvpn"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "com.example.onetapvpn"
@@ -80,7 +81,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
     implementation("com.wireguard.android:tunnel:1.0.20260102")
 
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
