@@ -81,6 +81,19 @@ class IranVpnProfileParserTest {
     }
 
     @Test
+    fun acceptsEightByteRealityShortId() {
+        val link = validLink.replace("sid=0123abcd", "sid=0123456789abcdef")
+        val profile = IranVpnProfileParser.parse(link)
+        val outbound = JSONObject(profile.configJson)
+            .getJSONArray("outbounds")
+            .getJSONObject(0)
+        assertEquals(
+            "0123456789abcdef",
+            outbound.getJSONObject("tls").getJSONObject("reality").getString("short_id")
+        )
+    }
+
+    @Test
     fun rejectsUnsupportedWebSocketTransport() {
         val invalid = validLink.replace("type=tcp", "type=ws")
         assertThrows(IllegalArgumentException::class.java) {
