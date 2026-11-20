@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 
 internal data class IranDiscoveryResult(
     val profile: IranVpnProfile,
+    val servers: List<IranVpnProfile>,
     val sourceCount: Int,
     val rawLineCount: Int
 )
@@ -49,9 +50,11 @@ internal class IranServerDiscovery {
                 index++
             }
         }.distinct()
+        val servers = IranVpnProfileParser.parseCandidates(links, fetched.size)
         val profile = IranVpnProfileParser.parseAutomatic(links, fetched.size)
         IranDiscoveryResult(
             profile = profile,
+            servers = servers,
             sourceCount = fetched.size,
             rawLineCount = links.size
         )
@@ -135,7 +138,7 @@ internal class IranServerDiscovery {
         const val CONNECT_TIMEOUT_MS = 5_000
         const val READ_TIMEOUT_MS = 8_000
         const val MAX_SOURCE_BYTES = 1_500_000
-                const val MAX_INTERLEAVED_CANDIDATES = 160
+                const val MAX_INTERLEAVED_CANDIDATES = 400
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
@@ -143,10 +146,15 @@ internal class IranServerDiscovery {
         val FEEDS = listOf(
             Feed(
                 listOf(
+                    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
+                    "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
+                    "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
+                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
                     "https://raw.githubusercontent.com/mehrtat/vless-collector/main/vless.txt",
                     "https://cdn.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
                     "https://fastly.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
-                    "https://gcore.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt"
+                    "https://gcore.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
+                    "https://raw.githack.com/mehrtat/vless-collector/main/vless.txt"
                 )
             ),
             Feed(
@@ -154,7 +162,8 @@ internal class IranServerDiscovery {
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
                     "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
                     "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
-                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt"
+                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
+                    "https://raw.githack.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt"
                 )
             ),
             Feed(
@@ -162,7 +171,10 @@ internal class IranServerDiscovery {
                     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best-base64.txt",
                     "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
                     "https://fastly.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
-                    "https://gcore.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt"
+                    "https://gcore.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
+                    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
+                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/iran.txt",
+                    "https://raw.githack.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt"
                 )
             ),
             Feed(
