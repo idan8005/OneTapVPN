@@ -14,7 +14,10 @@ internal data class IranVpnProfile(
     val serverPort: Int,
     val configJson: String,
     val candidateCount: Int = 1,
-    val sourceCount: Int = 1
+    val sourceCount: Int = 1,
+    val pingMs: Int = -1,
+    val speedMbps: Double = -1.0,
+    val healthStatus: String = "unknown"
 )
 
 internal object IranVpnProfileParser {
@@ -30,7 +33,7 @@ internal object IranVpnProfileParser {
         val nodes = links.asSequence()
             .mapNotNull { link -> runCatching { parseNode(link) }.getOrNull() }
             .distinctBy { "${it.host.lowercase()}:${it.port}:${it.uuid}" }
-            .take(MAX_LIST_NODES)
+            .take(MAX_AUTO_NODES)
             .toList()
 
         return nodes.map { node ->
@@ -150,14 +153,15 @@ internal object IranVpnProfileParser {
         val nodeTags = mutableListOf<String>()
 
         nodes.forEachIndexed { index, node ->
-            val tag = if (automaticSelection) "node-${index + 1}" else "proxy"
+            val tag = "node-${index + 1}"
             nodeTags += tag
             outbounds.put(JSONObject(node.outbound.toString()).put("tag", tag))
         }
 
         outbounds.put(JSONObject().put("type", "direct").put("tag", "direct"))
 
-        val finalOutbound = if (automaticSelection) {
+        val selectorOptions = JSONArray()
+        if (automaticSelection) {
             outbounds.put(
                 JSONObject()
                     .put("type", "urltest")
@@ -168,10 +172,16 @@ internal object IranVpnProfileParser {
                     .put("tolerance", 25)
                     .put("idle_timeout", "4m")
             )
-            "auto"
-        } else {
-            "proxy"
+            selectorOptions.put("auto")
         }
+        nodeTags.forEach(selectorOptions::put)
+        outbounds.put(
+            JSONObject()
+                .put("type", "selector")
+                .put("tag", "proxy")
+                .put("outbounds", selectorOptions)
+        )
+        val finalOutbound = "proxy"
 
         val config = JSONObject()
             .put("log", JSONObject().put("level", "info").put("timestamp", true))
@@ -191,21 +201,29 @@ internal object IranVpnProfileParser {
             )
             .put(
                 "inbounds",
-                JSONArray().put(
-                    JSONObject()
-                        .put("type", "tun")
-                        .put("tag", "tun-in")
-                        .put(
-                            "address",
-                            JSONArray()
-                                .put("172.19.0.1/30")
-                                .put("fdfe:dcba:9876::1/126")
-                        )
-                        .put("mtu", 1400)
-                        .put("auto_route", true)
-                        .put("strict_route", true)
-                        .put("stack", "system")
-                )
+                JSONArray()
+                    .put(
+                        JSONObject()
+                            .put("type", "tun")
+                            .put("tag", "tun-in")
+                            .put(
+                                "address",
+                                JSONArray()
+                                    .put("172.19.0.1/30")
+                                    .put("fdfe:dcba:9876::1/126")
+                            )
+                            .put("mtu", 1400)
+                            .put("auto_route", true)
+                            .put("strict_route", true)
+                            .put("stack", "system")
+                    )
+                    .put(
+                        JSONObject()
+                            .put("type", "mixed")
+                            .put("tag", "local-speedtest")
+                            .put("listen", "127.0.0.1")
+                            .put("listen_port", 2080)
+                    )
             )
             .put("outbounds", outbounds)
             .put(
@@ -215,18 +233,16 @@ internal object IranVpnProfileParser {
                     .put("final", finalOutbound)
             )
 
-        if (automaticSelection) {
-            val controllerSecret = UUID.randomUUID().toString().replace("-", "")
-            config.put(
-                "experimental",
-                JSONObject().put(
-                    "clash_api",
-                    JSONObject()
-                        .put("external_controller", "127.0.0.1:19090")
-                        .put("secret", controllerSecret)
-                )
+        val controllerSecret = UUID.randomUUID().toString().replace("-", "")
+        config.put(
+            "experimental",
+            JSONObject().put(
+                "clash_api",
+                JSONObject()
+                    .put("external_controller", "127.0.0.1:19090")
+                    .put("secret", controllerSecret)
             )
-        }
+        )
 
         val first = nodes.first()
         return IranVpnProfile(
