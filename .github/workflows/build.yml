@@ -122,6 +122,7 @@ jobs:
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$APK" | tee release-signature.txt
+          grep -qi "Signer #1 certificate SHA-256 digest: 152de76e27a36f9309a0f5391fa9735713abf5498eac2d991138708a67d67d2f" release-signature.txt
           cp "$APK" raahat-vpn.apk
           sha256sum raahat-vpn.apk > raahat-vpn.apk.sha256
           echo "Signed Release APK verified successfully." >> "$GITHUB_STEP_SUMMARY"
@@ -190,7 +191,7 @@ jobs:
             [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
             VERSION="v${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
           fi
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish APK and checksum
