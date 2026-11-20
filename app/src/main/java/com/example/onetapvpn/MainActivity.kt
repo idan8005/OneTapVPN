@@ -556,7 +556,7 @@ class MainActivity : AppCompatActivity() {
                         selected.serverHost,
                         selected.serverPort
                     ) + if (selected.pingMs > 0) {
-                        "\\n" + serverHealthLabel(selected)
+                        "\n" + serverHealthLabel(selected)
                     } else {
                         ""
                     }

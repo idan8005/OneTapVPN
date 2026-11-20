@@ -112,8 +112,6 @@
     <string name="iran_connected_to_server">Connected to %1$s · %2$s:%3$d</string>
     <string name="iran_connected_auto_pending">Connected in automatic mode. Waiting for the engine to report the selected server (%1$d candidates available)…</string>
     <string name="iran_active_server_updated">The active server was identified.</string>
-    <string name="iran_switching_server">The previous server became unstable. Switched to %1$s · %2$s:%3$d.</string>
-    <string name="iran_server_recovery">The active server is unavailable. Raahat VPN is testing alternatives and will reconnect automatically.</string>
 
     <string name="iran_server_health_checking">Testing each server: real connection ping and a small download-speed sample…</string>
     <string name="iran_no_server_passed_test">None of the listed servers passed the Internet test. Refresh the list and try again.</string>

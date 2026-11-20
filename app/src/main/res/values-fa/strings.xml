@@ -112,8 +112,6 @@
     <string name="iran_connected_to_server">متصل به %1$s · %2$s:%3$d</string>
     <string name="iran_connected_auto_pending">حالت خودکار وصل شد؛ در انتظار اعلام سرور انتخاب‌شده از طرف موتور VPN هستیم (%1$d گزینه در دسترس)…</string>
     <string name="iran_active_server_updated">سرور فعال شناسایی شد.</string>
-    <string name="iran_switching_server">سرور قبلی ناپایدار شد؛ اتصال به %1$s · %2$s:%3$d منتقل شد.</string>
-    <string name="iran_server_recovery">سرور فعال در دسترس نیست؛ راحت VPN در حال آزمایش گزینه‌های دیگر و برقراری مجدد اتصال است.</string>
 
     <string name="iran_server_health_checking">در حال آزمایش تک‌تک سرورها: پینگ واقعی و نمونهٔ سرعت دانلود…</string>
     <string name="iran_no_server_passed_test">هیچ‌کدام از سرورها آزمایش اینترنت را با موفقیت نگذرانده‌اند. فهرست را تازه‌سازی و دوباره امتحان کن.</string>

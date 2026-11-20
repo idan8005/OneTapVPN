@@ -704,7 +704,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                         getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
                     )
                 } else {
-                    // Keep the tunnel alive and retry on the next monitor cycle.
+                    // Do not leave the selector pointing at an unverified trial node.
+                    runCatching { selectOutbound(secret, activeTag) }
                     candidates = merged.ifEmpty { candidates }
                     consecutiveFailures = 0
                     updateForegroundNotification(getString(R.string.iran_server_recovery))

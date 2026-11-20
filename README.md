@@ -128,8 +128,8 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 - `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
 - `IranVpnService.kt`: Android VPN service for the optional sing-box engine.
 - `IranVpnProfile.kt`: strict VLESS + REALITY parser and sing-box URL-test builder.
-- `IranServerDiscovery.kt`: multi-source public feed discovery with CDN fallback and bounded downloads.
-- `ServerHealthScorer.kt`: quality-based server ranking using throughput, latency, probe reliability and jitter.
+- `IranServerDiscovery.kt`: four public feed sources with CDN fallback and bounded downloads.
+- `IranServerDiscovery.kt`: multi-source public feed discovery with CDN fallback.
 - `VpnGateApi.kt`: public directory fetch and server ranking.
 - `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
 - `VpnViewModel.kt`: connection state and automatic server failover.
