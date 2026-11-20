@@ -45,6 +45,9 @@
     <string name="update_checking">در حال بررسی نسخه جدید…</string>
     <string name="update_current">آخرین نسخه برنامه نصب است.</string>
     <string name="update_available">نسخه %1$s آماده دریافت است.</string>
+    <string name="update_prompt">نسخه %1$s راحت وی‌پی‌ان آماده است. اکنون دانلود و نصب شود؟</string>
+    <string name="update_now">به‌روزرسانی</string>
+    <string name="update_later">بعداً</string>
     <string name="update_download_progress">در حال دانلود به‌روزرسانی… %1$d٪</string>
     <string name="update_downloaded">دانلود بررسی شد. نصب‌کننده اندروید باز می‌شود…</string>
     <string name="update_error">بررسی به‌روزرسانی ناموفق بود: %1$s</string>
