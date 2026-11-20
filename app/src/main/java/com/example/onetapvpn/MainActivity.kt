@@ -2,7 +2,10 @@ package com.example.onetapvpn
 
 import android.app.Activity
 import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Typeface
@@ -10,9 +13,11 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -56,11 +61,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var updateText: TextView
     private lateinit var updateProgress: ProgressBar
     private lateinit var connectProgress: ProgressBar
+    private lateinit var iranProfileStatusText: TextView
+    private lateinit var connectIranButton: MaterialButton
+    private lateinit var disconnectIranButton: MaterialButton
 
     private var latestState = VpnUiState()
     private var pendingInstallFile: File? = null
     private var updateJob: Job? = null
     private val appUpdater by lazy { AppUpdater(applicationContext) }
+    private val iranVpnManager by lazy { IranVpnManager(applicationContext) }
+    private val iranProfileStore by lazy { IranVpnProfileStore(applicationContext) }
+    private var iranReceiverRegistered = false
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -69,6 +80,25 @@ class MainActivity : AppCompatActivity() {
             viewModel.connect()
         } else {
             viewModel.onVpnPermissionDenied()
+        }
+    }
+
+    private val iranVpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            startIranTunnel()
+        } else {
+            iranProfileStatusText.text = getString(R.string.vpn_permission_denied)
+        }
+    }
+
+    private val iranStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == ACTION_IRAN_STATUS) {
+                iranProfileStatusText.text = intent.getStringExtra(EXTRA_IRAN_STATUS)
+                    ?: getString(R.string.status_error)
+            }
         }
     }
 
@@ -96,6 +126,8 @@ class MainActivity : AppCompatActivity() {
 
         viewModel = ViewModelProvider(this)[VpnViewModel::class.java]
         setContentView(createContent())
+        registerIranStatusReceiver()
+        renderSavedIranProfile()
         OpenVpnStatus.addStateListener(vpnStateListener)
 
         lifecycleScope.launch {
@@ -117,6 +149,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         OpenVpnStatus.removeStateListener(vpnStateListener)
+        if (iranReceiverRegistered) unregisterReceiver(iranStatusReceiver)
         updateJob?.cancel()
         super.onDestroy()
     }
@@ -200,6 +233,36 @@ class MainActivity : AppCompatActivity() {
         connectionContent.addView(detailText, matchWrap())
         connectionCard.addView(connectionContent)
         content.addView(connectionCard, matchWrap().apply { topMargin = dp(24) })
+
+        val iranCard = card(Color.rgb(21, 29, 49), Color.rgb(93, 107, 141))
+        val iranContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+        iranContent.addView(
+            label(getString(R.string.iran_mode_title), 15f, Color.WHITE, Typeface.BOLD)
+        )
+        iranContent.addView(
+            label(getString(R.string.iran_mode_description), 12f, Color.rgb(174, 192, 218)),
+            matchWrap().apply { topMargin = dp(6) }
+        )
+        iranProfileStatusText = label(getString(R.string.iran_profile_empty), 13f, Color.rgb(174, 192, 218))
+        iranContent.addView(iranProfileStatusText, matchWrap().apply { topMargin = dp(10) })
+        val importIranProfileButton = outlinedButton(getString(R.string.iran_import_profile)) {
+            openIranProfileDialog()
+        }
+        iranContent.addView(importIranProfileButton, matchWrap().apply { topMargin = dp(10) })
+        connectIranButton = outlinedButton(getString(R.string.iran_connect)) {
+            requestIranConnection()
+        }
+        iranContent.addView(connectIranButton, matchWrap().apply { topMargin = dp(8) })
+        disconnectIranButton = outlinedButton(getString(R.string.iran_disconnect)) {
+            iranVpnManager.stop()
+            iranProfileStatusText.text = getString(R.string.iran_disconnected)
+        }
+        iranContent.addView(disconnectIranButton, matchWrap().apply { topMargin = dp(8) })
+        iranCard.addView(iranContent)
+        content.addView(iranCard, matchWrap().apply { topMargin = dp(14) })
 
         val serverCard = card(Color.rgb(14, 25, 44), Color.rgb(34, 51, 75))
         val serverContent = LinearLayout(this).apply {
@@ -310,6 +373,109 @@ class MainActivity : AppCompatActivity() {
         content.addView(noticeCard, matchWrap().apply { topMargin = dp(14) })
 
         return scroll
+    }
+
+    private fun registerIranStatusReceiver() {
+        val filter = IntentFilter(ACTION_IRAN_STATUS)
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            iranStatusReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        iranReceiverRegistered = true
+    }
+
+    private fun renderSavedIranProfile() {
+        val profile = iranProfileStore.read()
+        if (profile == null) {
+            iranProfileStatusText.text = getString(R.string.iran_profile_empty)
+            connectIranButton.isEnabled = false
+        } else {
+            iranProfileStatusText.text = getString(
+                R.string.iran_profile_loaded,
+                profile.serverHost,
+                profile.serverPort
+            )
+            connectIranButton.isEnabled = true
+        }
+    }
+
+    private fun openIranProfileDialog() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.iran_profile_input_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            minLines = 4
+            maxLines = 7
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setTextDirection(View.TEXT_DIRECTION_LTR)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.iran_import_profile)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                try {
+                    val profile = IranVpnProfileParser.parse(input.text.toString())
+                    iranProfileStore.save(profile)
+                    renderSavedIranProfile()
+                } catch (error: Exception) {
+                    iranProfileStatusText.text = getString(
+                        R.string.iran_profile_invalid,
+                        error.localizedMessage ?: getString(R.string.status_error)
+                    )
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun requestIranConnection() {
+        if (iranProfileStore.read() == null) {
+            Toast.makeText(this, R.string.iran_profile_missing, Toast.LENGTH_LONG).show()
+            return
+        }
+        val permissionIntent = VpnService.prepare(this)
+        if (permissionIntent == null) {
+            startIranTunnel()
+        } else {
+            iranVpnPermissionLauncher.launch(permissionIntent)
+        }
+    }
+
+    private fun startIranTunnel() {
+        val profile = iranProfileStore.read()
+        if (profile == null) {
+            iranProfileStatusText.text = getString(R.string.iran_profile_missing)
+            return
+        }
+
+        lifecycleScope.launch {
+            if (latestState.status == VpnStatus.CONNECTED ||
+                latestState.status == VpnStatus.CONNECTING
+            ) {
+                viewModel.disconnect()
+                delay(900L)
+            }
+
+            val selectedPackages = if (latestState.routing.mode == RoutingMode.SELECTED_APPS) {
+                latestState.routing.selectedPackages
+            } else {
+                emptySet()
+            }
+            val started = iranVpnManager.start(profile, selectedPackages)
+            if (!started) {
+                iranProfileStatusText.text = getString(
+                    R.string.iran_engine_error,
+                    getString(R.string.status_error)
+                )
+            } else {
+                iranProfileStatusText.text = getString(R.string.iran_engine_starting)
+            }
+        }
     }
 
     private fun onConnectionButtonPressed() {
@@ -647,5 +813,7 @@ class MainActivity : AppCompatActivity() {
     private companion object {
         const val DOWNLOAD_POLL_INTERVAL_MS = 650L
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+        const val ACTION_IRAN_STATUS = "com.example.onetapvpn.iran.STATUS"
+        const val EXTRA_IRAN_STATUS = "status"
     }
 }
