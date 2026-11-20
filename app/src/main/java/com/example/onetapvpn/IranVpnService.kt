@@ -461,10 +461,14 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
     override fun cancelNotification(identifier: String, typeID: Int) = Unit
 
-    private class StringArray(private val iterator: Iterator<String>) : StringIterator {
-        override fun len(): Int = 0
-        override fun hasNext(): Boolean = iterator.hasNext()
-        override fun next(): String = iterator.next()
+    private class StringArray(private val values: List<String>) : StringIterator {
+        constructor(iterator: Iterator<String>) : this(iterator.asSequence().toList())
+
+        private var index = 0
+
+        override fun len(): Int = values.size
+        override fun hasNext(): Boolean = index < values.size
+        override fun next(): String = values[index++]
     }
 
     private fun InterfaceAddress.toPrefix(): String {
