@@ -147,6 +147,12 @@ class MainActivity : AppCompatActivity() {
                 viewModel.uiState.collect(::render)
             }
         }
+        lifecycleScope.launch {
+            delay(1_500L)
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                checkForUpdates()
+            }
+        }
     }
 
     override fun onResume() {
@@ -695,7 +701,15 @@ class MainActivity : AppCompatActivity() {
                     }
                     is UpdateCheck.Available -> {
                         updateText.text = getString(R.string.update_available, result.release.versionName)
-                        downloadAvailableUpdate(result.release)
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle(R.string.update_title)
+                            .setMessage(getString(R.string.update_prompt, result.release.versionName))
+                            .setPositiveButton(R.string.update_now) { _, _ ->
+                                downloadAvailableUpdate(result.release)
+                            }
+                            .setNegativeButton(R.string.update_later, null)
+                            .show()
+                        checkUpdateButton.isEnabled = true
                     }
                 }
             } catch (error: Exception) {
