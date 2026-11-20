@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">وان‌تپ وی‌پی‌ان</string>
-    <string name="app_tagline">اتصال خصوصی، فقط با یک لمس</string>
-    <string name="connection_title">وضعیت اتصال VPN</string>
+    <string name="app_name">راحت وی‌پی‌ان</string>
+    <string name="app_tagline">اتصال امن، فقط با یک لمس</string>
+    <string name="connection_title">اتصال سریع VPN</string>
     <string name="status_disconnected">متصل نیست</string>
     <string name="status_connecting">در حال اتصال…</string>
     <string name="status_connected">متصل شد</string>
     <string name="status_disconnecting">در حال قطع اتصال…</string>
     <string name="status_error">مشکل در اتصال</string>
-    <string name="tap_to_connect">برای اتصال امن، دکمه را لمس کنید.</string>
+    <string name="tap_to_connect">برای شروع دکمه اتصال را لمس کنید؛ بار اول مجوز VPN اندروید را تأیید کنید.</string>
     <string name="connect">اتصال</string>
     <string name="disconnect">قطع اتصال</string>
     <string name="connecting_button">در حال اتصال…</string>
     <string name="disconnecting_button">در حال قطع…</string>
-    <string name="profile_section">پروفایل VPN</string>
-    <string name="profile_description">در اولین اتصال، برنامه تلاش می‌کند پروفایل رایگان WARP را خودکار بسازد. همچنین می‌توانید فایل پیکربندی WireGuard خودتان را وارد کنید.</string>
+    <string name="profile_section">پروفایل دستی و تنظیمات اختیاری</string>
+    <string name="profile_description">برای استفاده عادی نیازی به تنظیمات ندارید. برنامه هنگام اولین اتصال، تلاش می‌کند پروفایل رایگان WARP را خودکار بسازد. در صورت تمایل می‌توانید پروفایل WireGuard خودتان را وارد کنید.</string>
     <string name="import_file">وارد کردن فایل WireGuard</string>
     <string name="paste_clipboard">وارد کردن تنظیمات از حافظه موقت</string>
     <string name="export_profile">خروجی گرفتن از پروفایل WireGuard</string>
@@ -34,4 +34,6 @@
     <string name="profile_too_large">حجم فایل انتخاب‌شده بیش از حد مجاز است.</string>
     <string name="cannot_read_profile">خواندن فایل انتخاب‌شده ممکن نشد.</string>
     <string name="import_failed">وارد کردن فایل ناموفق بود: %1$s</string>
+    <string name="advanced_settings">تنظیمات پیشرفته (اختیاری)</string>
+    <string name="hide_advanced_settings">بستن تنظیمات پیشرفته</string>
 </resources>
