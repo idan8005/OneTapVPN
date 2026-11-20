@@ -208,7 +208,6 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
                 val tag = readActiveOutboundTag(secret)
                 if (!tag.isNullOrBlank()) {
-                    lastTag = tag
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
                         getString(R.string.iran_active_server_updated),
