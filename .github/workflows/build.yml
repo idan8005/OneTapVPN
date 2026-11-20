@@ -3,6 +3,8 @@ name: Build, test and sign Raahat VPN
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       run_emulator_test:
