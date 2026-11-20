@@ -1,35 +1,31 @@
 package com.example.onetapvpn
 
-import androidx.test.core.app.ActivityScenario
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
-import androidx.test.espresso.matcher.ViewMatchers.Visibility
-import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.espresso.matcher.ViewMatchers.withText
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MainActivitySmokeTest {
+    @get:Rule
+    val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun mainScreenStartsSimpleAndKeepsManualProfilesOptional() {
-        ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.brand_title)).check(matches(withText(R.string.app_name)))
-            onView(withId(R.id.connection_status)).check(matches(isDisplayed()))
-            onView(withId(R.id.connect_button)).check(matches(isDisplayed()))
-            onView(withId(R.id.advanced_settings_button)).check(matches(isDisplayed()))
-            onView(withId(R.id.import_profile_button))
-                .check(matches(withEffectiveVisibility(Visibility.GONE)))
+    fun mainScreenStartsSimpleAndKeepsProfileToolsOptional() {
+        composeRule.onNodeWithText(R.string.app_name).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.status_disconnected).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.connect).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.advanced_settings).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.import_file).assertDoesNotExist()
 
-            onView(withId(R.id.advanced_settings_button)).perform(click())
-            onView(withId(R.id.import_profile_button)).check(matches(isDisplayed()))
-            onView(withId(R.id.paste_profile_button)).check(matches(isDisplayed()))
-            onView(withId(R.id.export_profile_button)).check(matches(isDisplayed()))
-        }
+        composeRule.onNodeWithText(R.string.advanced_settings).performClick()
+        composeRule.onNodeWithText(R.string.import_file).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.paste_clipboard).assertIsDisplayed()
+        composeRule.onNodeWithText(R.string.export_profile).assertIsDisplayed()
     }
 }
