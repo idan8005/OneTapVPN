@@ -186,8 +186,8 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME}"
           else
-            BASE_VERSION="$(sed -n 's/^val baseVersionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts | head -n 1)"
-            [[ "$BASE_VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]
+            BASE_VERSION="$(sed -n 's/^val baseVersionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+            [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
             VERSION="v${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
           fi
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
