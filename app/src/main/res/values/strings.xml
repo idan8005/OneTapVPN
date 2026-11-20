@@ -52,7 +52,7 @@
     <string name="update_install_permission">Allow Raahat VPN to install the downloaded update, then return here.</string>
     <string name="update_install_open_failed">Could not open the Android package installer: %1$s</string>
     <string name="security_notice_title">Public volunteer VPN warning</string>
-    <string name="security_notice">Servers are operated by volunteers, not by Raahat VPN. Their speed and availability can change. Do not send passwords or sensitive information through unknown relays.</string>
+    <string name="security_notice">Public servers are discovered from independent sources and are not operated by Raahat VPN. They can disappear or be unsafe. Do not send passwords, banking or confidential data through them.</string>
     <string name="status_busy">Please wait…</string>
     <string name="server_card_title">Best available server</string>
     <string name="server_count">%1$d server(s) currently listed</string>
@@ -71,12 +71,12 @@
     <string name="iran_discovery_fallback">Refresh failed; using %1$d cached candidates. %2$s</string>
     <string name="iran_connect">Connect with Iran mode</string>
     <string name="iran_disconnect">Disconnect Iran mode</string>
-    <string name="iran_profile_empty">No Iran-mode profile imported.</string>
+    <string name="iran_profile_empty">No server found yet; automatic discovery is running.</string>
     <string name="iran_profile_loaded">%1$d saved servers from %2$d sources are ready to test.</string>
     <string name="iran_profile_invalid">Profile could not be imported: %1$s</string>
     <string name="iran_profile_input_hint">Paste a vless:// link with security=reality, pbk, sni and sid.</string>
     <string name="iran_engine_starting">Starting the alternative VPN engine…</string>
-    <string name="iran_engine_started">Alternative VPN engine started. Waiting for tunnel status.</string>
+    <string name="iran_engine_started">Engine started; testing servers and selecting a responsive candidate.</string>
     <string name="iran_engine_error">Iran-mode connection failed: %1$s</string>
     <string name="iran_profile_missing">Import a VLESS + REALITY link before connecting.</string>
     <string name="iran_disconnected">Iran-mode VPN disconnected.</string>
