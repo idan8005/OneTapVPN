@@ -43,6 +43,7 @@ import java.net.InterfaceAddress
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Collections
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.NetworkInterface
 import kotlinx.coroutines.CoroutineScope
@@ -95,14 +96,16 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 stopSelf(startId)
                 return START_NOT_STICKY
             }
-        selectedPackages = intent?.getStringArrayListExtra(EXTRA_PACKAGES)
+        val scanOnly = intent?.getBooleanExtra(EXTRA_SCAN_ONLY, false) == true
+        val runtimeConfig = if (scanOnly) createHealthScanConfig(config) else config
+        selectedPackages = if (scanOnly) emptyList() else intent?.getStringArrayListExtra(EXTRA_PACKAGES)
             ?.distinct()
             ?.filter { it.isNotBlank() }
             .orEmpty()
         selectedOutboundTag = intent?.getStringExtra(EXTRA_SELECTED_OUTBOUND)
             ?.takeIf { it.isNotBlank() }
             ?: AUTO_OUTBOUND_TAG
-        currentConfig = config
+        currentConfig = runtimeConfig
 
         startupJob?.cancel()
         startupJob = serviceScope.launch {
@@ -112,14 +115,21 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     it.start()
                     commandServer = it
                 }
-                server.startOrReloadService(config, createOverrideOptions())
+                server.startOrReloadService(runtimeConfig, createOverrideOptions())
 
-                val secret = readControllerSecret(config)
+                val secret = readControllerSecret(runtimeConfig)
                     ?: error("The local server-health controller is not configured.")
                 awaitControllerReady(secret)
                 updateForegroundNotification(getString(R.string.iran_server_health_checking))
-                val healthResults = checkAllServers(secret, config)
+                val healthResults = checkAllServers(secret, runtimeConfig, runSpeedTest = !scanOnly)
                 val available = healthResults.filter { it.pingMs > 0 }
+                if (scanOnly) {
+                    publishScanComplete(available.size, healthResults.size)
+                    startupJob = null
+                    stopEngine()
+                    stopSelf(startId)
+                    return@launch
+                }
                 if (available.isEmpty()) {
                     error(getString(R.string.iran_no_server_passed_test))
                 }
@@ -158,11 +168,17 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 throw cancelled
             } catch (error: Exception) {
                 Log.e(TAG, "VPN startup or Internet verification failed", error)
-                publishStatus(
-                    IranVpnContract.STATE_ERROR,
-                    error.localizedMessage?.take(220)
-                        ?: getString(R.string.status_error)
-                )
+                if (scanOnly) {
+                    publishScanError(error.localizedMessage?.take(220)
+                        ?: getString(R.string.status_error))
+                } else {
+                    publishStatus(
+                        IranVpnContract.STATE_ERROR,
+                        error.localizedMessage?.take(220)
+                            ?: getString(R.string.status_error)
+                    )
+                }
+                startupJob = null
                 stopEngine()
                 stopSelf(startId)
             }
@@ -265,7 +281,11 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         }
     }
 
-    private suspend fun checkAllServers(secret: String, config: String): List<ServerHealthResult> {
+    private suspend fun checkAllServers(
+        secret: String,
+        config: String,
+        runSpeedTest: Boolean = true
+    ): List<ServerHealthResult> {
         val candidates = readServerOutbounds(config)
         if (candidates.isEmpty()) error(getString(R.string.iran_profile_missing))
 
@@ -302,6 +322,10 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 if (result.pingMs > 0) "online" else "offline"
             )
         }
+
+        // The background list scan checks real proxy reachability only. Speed
+        // samples are reserved for connection startup to keep refresh fast.
+        if (!runSpeedTest) return measured
 
         // A small, fixed download compares real proxied throughput without
         // turning the check into a large data-consuming speed test.
@@ -466,6 +490,39 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             val latencyScore = (lowestPing.toDouble() / candidate.pingMs).coerceIn(0.0, 1.0)
             speedScore * SPEED_SCORE_WEIGHT + latencyScore * LATENCY_SCORE_WEIGHT
         }
+    }
+
+    private fun createHealthScanConfig(config: String): String {
+        val root = JSONObject(config)
+        val originalInbounds = root.optJSONArray("inbounds")
+            ?: error("The VPN profile has no inbounds to test.")
+        val scanInbounds = JSONArray()
+        for (index in 0 until originalInbounds.length()) {
+            val inbound = originalInbounds.optJSONObject(index) ?: continue
+            if (inbound.optString("type") != "tun") scanInbounds.put(inbound)
+        }
+        check(scanInbounds.length() > 0) { "The local proxy inbound is missing from the test profile." }
+        root.put("inbounds", scanInbounds)
+        return root.toString()
+    }
+
+    private fun publishScanComplete(onlineCount: Int, totalCount: Int) {
+        sendBroadcast(
+            Intent(IranVpnContract.ACTION_STATUS)
+                .setPackage(packageName)
+                .putExtra(IranVpnContract.EXTRA_STATE, IranVpnContract.STATE_SCAN_COMPLETE)
+                .putExtra(IranVpnContract.EXTRA_SCAN_ONLINE_COUNT, onlineCount)
+                .putExtra(IranVpnContract.EXTRA_SCAN_TOTAL_COUNT, totalCount)
+        )
+    }
+
+    private fun publishScanError(message: String) {
+        sendBroadcast(
+            Intent(IranVpnContract.ACTION_STATUS)
+                .setPackage(packageName)
+                .putExtra(IranVpnContract.EXTRA_STATE, IranVpnContract.STATE_SCAN_ERROR)
+                .putExtra(IranVpnContract.EXTRA_MESSAGE, message)
+        )
     }
 
     private fun publishServerHealth(tag: String, pingMs: Int, speedMbps: Double, status: String) {
@@ -917,6 +974,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
         const val EXTRA_SELECTED_OUTBOUND = "selected_outbound_tag"
+        const val EXTRA_SCAN_ONLY = "scan_only"
         const val AUTO_OUTBOUND_TAG = "auto"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
         const val CONTROLLER_BASE_URL = "http://127.0.0.1:19090"
