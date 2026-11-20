@@ -45,6 +45,9 @@
     <string name="update_checking">Checking for a new version…</string>
     <string name="update_current">You are using the latest version.</string>
     <string name="update_available">Version %1$s is available.</string>
+    <string name="update_prompt">Raahat VPN version %1$s is ready. Download and install it now?</string>
+    <string name="update_now">Update now</string>
+    <string name="update_later">Later</string>
     <string name="update_download_progress">Downloading update… %1$d%%</string>
     <string name="update_downloaded">Download verified. Opening Android installer…</string>
     <string name="update_error">Update check failed: %1$s</string>
