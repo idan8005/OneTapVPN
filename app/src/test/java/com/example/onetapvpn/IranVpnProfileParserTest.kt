@@ -64,6 +64,31 @@ class IranVpnProfileParserTest {
     }
 
     @Test
+    fun acceptsServerNamesWithSpacesAndUnicodeInUriFragment() {
+        val link = validLink.substringBefore("#") + "#US 🇺🇸 | test server"
+        val profile = IranVpnProfileParser.parse(link)
+        assertEquals("US 🇺🇸 | test server", profile.name)
+    }
+
+    @Test
+    fun returnsIndividualProfilesForManualServerSelection() {
+        val secondLink = validLink.replace("example.com:443", "another.example.net:8443")
+            .replace("www.example.com", "www.another.example.net")
+            .replace("#Iran", "#Iran2")
+
+        val servers = IranVpnProfileParser.parseCandidates(
+            listOf(validLink, secondLink, validLink, "vmess://unsupported"),
+            sourceCount = 2
+        )
+
+        assertEquals(2, servers.size)
+        assertEquals("example.com", servers[0].serverHost)
+        assertEquals("another.example.net", servers[1].serverHost)
+        assertEquals("proxy", JSONObject(servers[1].configJson)
+            .getJSONObject("route").getString("final"))
+    }
+
+    @Test
     fun rejectsAutomaticFeedWithoutCompatibleRealityNodes() {
         assertThrows(IllegalArgumentException::class.java) {
             IranVpnProfileParser.parseAutomatic(
