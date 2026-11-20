@@ -34,6 +34,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var connectButton: MaterialButton
     private lateinit var progressBar: ProgressBar
     private var latestState = VpnUiState()
+    private var pendingExportProfile: String? = null
+
+    private val profileSaver = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        val profile = pendingExportProfile
+        pendingExportProfile = null
+        if (uri == null || profile == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    contentResolver.openOutputStream(uri, "wt")
+                        ?.bufferedWriter(Charsets.UTF_8)
+                        ?.use { it.write(profile) }
+                        ?: throw IllegalStateException(getString(R.string.profile_export_failed))
+                }
+                detailText.text = getString(R.string.profile_exported)
+            } catch (error: Exception) {
+                detailText.text = getString(
+                    R.string.profile_export_failed_detail,
+                    error.localizedMessage ?: getString(R.string.unknown_error)
+                )
+            }
+        }
+    }
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -129,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         }
         heroContent.addView(label(getString(R.string.connection_title), 17f, Color.rgb(199, 215, 238)))
         statusText = label(getString(R.string.status_disconnected), 24f, Color.WHITE, Typeface.BOLD).apply {
+            id = R.id.connection_status
             gravity = Gravity.CENTER
         }
         heroContent.addView(statusText, matchWrap().apply { topMargin = dp(8) })
@@ -141,6 +167,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         connectButton = MaterialButton(this).apply {
+            id = R.id.connect_button
             text = getString(R.string.connect)
             textSize = 19f
             typeface = Typeface.DEFAULT_BOLD
@@ -172,6 +199,7 @@ class MainActivity : AppCompatActivity() {
         }
         importContent.addView(label(getString(R.string.profile_description), 14f, Color.rgb(174, 192, 218)))
         val chooseButton = MaterialButton(this).apply {
+            id = R.id.import_profile_button
             text = getString(R.string.import_file)
             isAllCaps = false
             setOnClickListener {
@@ -188,7 +216,24 @@ class MainActivity : AppCompatActivity() {
             isAllCaps = false
             setOnClickListener { importFromClipboard() }
         }
+        pasteButton.id = R.id.paste_profile_button
         importContent.addView(pasteButton, matchWrap().apply { topMargin = dp(8) })
+
+        val exportButton = MaterialButton(
+            this,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            id = R.id.export_profile_button
+            text = getString(R.string.export_profile)
+            isAllCaps = false
+            setOnClickListener { exportProfile() }
+        }
+        importContent.addView(exportButton, matchWrap().apply { topMargin = dp(8) })
+        importContent.addView(
+            label(getString(R.string.export_profile_warning), 12f, Color.rgb(215, 174, 124)),
+            matchWrap().apply { topMargin = dp(8) }
+        )
         importCard.addView(importContent)
         content.addView(importCard, matchWrap())
 
@@ -206,6 +251,25 @@ class MainActivity : AppCompatActivity() {
                 val permissionIntent = VpnService.prepare(this)
                 if (permissionIntent == null) viewModel.connect()
                 else vpnPermissionLauncher.launch(permissionIntent)
+            }
+        }
+    }
+
+    private fun exportProfile() {
+        lifecycleScope.launch {
+            try {
+                val profile = viewModel.readProfileForExport()
+                if (profile.isNullOrBlank()) {
+                    detailText.text = getString(R.string.no_profile_to_export)
+                    return@launch
+                }
+                pendingExportProfile = profile
+                profileSaver.launch("OneTapVPN-profile.conf")
+            } catch (error: Exception) {
+                detailText.text = getString(
+                    R.string.profile_export_failed_detail,
+                    error.localizedMessage ?: getString(R.string.unknown_error)
+                )
             }
         }
     }
