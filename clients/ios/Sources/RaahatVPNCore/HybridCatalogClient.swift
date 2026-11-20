@@ -43,7 +43,7 @@ public struct HybridCatalogClient {
   switch http.statusCode{case 200:break;case 401:throw HybridClientError.unauthorized;case 403:throw HybridClientError.forbidden;case 503:throw HybridClientError.unavailable;default:throw HybridClientError.httpStatus(http.statusCode)}
   let catalog=try JSONDecoder().decode(HybridCatalog.self,from:data)
   guard catalog.plan=="free"||catalog.plan=="premium" else{throw HybridClientError.invalidResponse}
-  let nodes=catalog.premiumServers.filter{$0.enabled&&$0.protocolName=="vless-reality"&&!$0.config.isEmpty&&(1...65535).contains($0.port)}.prefix(60)
+  let nodes = catalog.premiumServers.filter { $0.enabled && $0.protocolName == "vless-reality" && !$0.config.isEmpty && (1...65535).contains($0.port) }.prefix(60)
   return HybridCatalog(plan:catalog.plan,generatedAt:catalog.generatedAt,publicDiscovery:catalog.publicDiscovery,premiumServers:Array(nodes))
  }
 }
