@@ -120,6 +120,9 @@
     <string name="iran_manual_server_unavailable">The manually selected server did not pass the connectivity test. Choose another server.</string>
     <string name="iran_internet_test_failed">The server responded, but the Internet check through the VPN failed. This server was not marked connected.</string>
     <string name="iran_connected_verified">Internet access through the selected VPN server was verified.</string>
+    <string name="iran_testing_server">Testing server %1$d of %2$d · %3$s</string>
+    <string name="iran_proxy_test_failed">The selected server responded but could not pass the Internet test through its proxy.</string>
+    <string name="iran_all_candidates_failed">Tried %1$d responsive servers, but none passed the full Internet test. Last result: %2$s</string>
     <string name="server_health_checking">Testing…</string>
     <string name="server_health_offline">Offline / no response</string>
     <string name="server_health_metrics">%1$d ms · %2$.1f Mbps</string>

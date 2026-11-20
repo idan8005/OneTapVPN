@@ -144,6 +144,14 @@ internal class IranServerDiscovery {
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
 
         val FEEDS = listOf(
+            // VLESS-only collection ranked by upstream measured download speed.
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/imnocrew/vpn-configs/master/top100-vless.txt",
+                    "https://cdn.jsdelivr.net/gh/imnocrew/vpn-configs@master/top100-vless.txt",
+                    "https://fastly.jsdelivr.net/gh/imnocrew/vpn-configs@master/top100-vless.txt"
+                )
+            ),
             // Independently tested VLESS-only feed. The upstream runs real
             // sing-box HTTP-over-proxy tests and refreshes its results hourly.
             Feed(

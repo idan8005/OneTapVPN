@@ -9,27 +9,32 @@ internal data class ServerQualitySample(
 )
 
 internal object ServerHealthScorer {
-    fun selectBest(candidates: List<ServerQualitySample>): String? {
+    fun rank(candidates: List<ServerQualitySample>): List<String> {
         val online = candidates.filter { it.pingMs > 0 && it.successRate > 0.0 }
-        if (online.isEmpty()) return null
+        if (online.isEmpty()) return emptyList()
 
-        val speedMeasured = online.filter { it.speedMbps > 0.0 }
-        val pool = speedMeasured.ifEmpty { online }
+        val fastestSpeed = online.filter { it.speedMbps > 0.0 }
+            .maxOfOrNull { it.speedMbps } ?: 0.0
         val lowestPing = online.minOf { it.pingMs }.coerceAtLeast(1)
-        val fastestSpeed = speedMeasured.maxOfOrNull { it.speedMbps } ?: 0.0
 
-        return pool.maxByOrNull { candidate ->
-            val latencyScore = (lowestPing.toDouble() / candidate.pingMs).coerceIn(0.0, 1.0)
-            val reliabilityScore = candidate.successRate.coerceIn(0.0, 1.0)
-            val jitterScore = (1.0 / (1.0 + candidate.jitterMs.coerceAtLeast(0) / 80.0))
-                .coerceIn(0.0, 1.0)
-            if (fastestSpeed > 0.0) {
-                val speedScore = (candidate.speedMbps / fastestSpeed).coerceIn(0.0, 1.0)
-                speedScore * 0.55 + latencyScore * 0.25 +
-                    reliabilityScore * 0.15 + jitterScore * 0.05
+        return online.sortedByDescending { candidate ->
+            val speedScore = if (fastestSpeed > 0.0 && candidate.speedMbps > 0.0) {
+                (candidate.speedMbps / fastestSpeed).coerceIn(0.0, 1.0)
             } else {
-                latencyScore * 0.65 + reliabilityScore * 0.25 + jitterScore * 0.10
+                0.0
             }
-        }?.tag
+            val latencyScore =
+                (lowestPing.toDouble() / candidate.pingMs).coerceIn(0.0, 1.0)
+            val reliabilityScore = candidate.successRate.coerceIn(0.0, 1.0)
+            val jitterScore =
+                (1.0 / (1.0 + candidate.jitterMs.coerceAtLeast(0) / 80.0))
+                    .coerceIn(0.0, 1.0)
+
+            speedScore * 0.50 + latencyScore * 0.30 +
+                reliabilityScore * 0.15 + jitterScore * 0.05
+        }.map { it.tag }
     }
+
+    fun selectBest(candidates: List<ServerQualitySample>): String? =
+        rank(candidates).firstOrNull()
 }

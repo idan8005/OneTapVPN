@@ -32,7 +32,7 @@ internal object IranVpnProfileParser {
     ): List<IranVpnProfile> {
         val nodes = links.asSequence()
             .mapNotNull { link -> runCatching { parseNode(link) }.getOrNull() }
-            .distinctBy { "${it.host.lowercase()}:${it.port}:${it.uuid}" }
+            .distinctBy { it.outbound.toString() }
             .take(MAX_AUTO_NODES)
             .toList()
 
@@ -47,7 +47,7 @@ internal object IranVpnProfileParser {
     ): IranVpnProfile {
         val nodes = links.asSequence()
             .mapNotNull { link -> runCatching { parseNode(link) }.getOrNull() }
-            .distinctBy { "${it.host.lowercase()}:${it.port}:${it.uuid}" }
+            .distinctBy { it.outbound.toString() }
             .take(MAX_AUTO_NODES)
             .toList()
 
@@ -58,7 +58,7 @@ internal object IranVpnProfileParser {
     }
 
     private fun parseNode(link: String): ParsedNode {
-        val value = link.trim().trim('"', '\'')
+        val value = link.trim().trim('"', '\'').replace("&amp;", "&", ignoreCase = true)
         require(value.startsWith("vless://", ignoreCase = true)) {
             "Only VLESS links are supported in Iran mode."
         }
@@ -78,12 +78,13 @@ internal object IranVpnProfileParser {
         val port = uri.port.takeIf { it in 1..65535 } ?: 443
         val query = parseQuery(uri.rawQuery.orEmpty())
 
-        require(query["security"].equals("reality", ignoreCase = true)) {
-            "Iran mode currently accepts VLESS + REALITY links only."
+        val security = query["security"]?.lowercase().orEmpty()
+        require(security == "reality" || security == "tls") {
+            "Only encrypted VLESS + REALITY or VLESS + TLS links are supported."
         }
-        val transport = query["type"]?.lowercase()
-        require(transport.isNullOrBlank() || transport == "tcp" || transport == "raw") {
-            "This VLESS link uses an unsupported transport. TCP is required."
+        val transport = query["type"]?.lowercase()?.ifBlank { "tcp" } ?: "tcp"
+        require(transport in setOf("tcp", "raw", "ws", "grpc", "http", "httpupgrade")) {
+            "This VLESS link uses an unsupported transport."
         }
         require(query["encryption"].isNullOrBlank() || query["encryption"] == "none") {
             "Unsupported VLESS encryption setting."
@@ -91,40 +92,50 @@ internal object IranVpnProfileParser {
 
         val serverName = query["sni"]?.takeIf { it.isNotBlank() }
             ?: query["servername"]?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("The REALITY server name (sni) is missing.")
+            ?: query["host"]?.substringBefore(",")?.takeIf { it.isNotBlank() }
+            ?: if (security == "tls") host else
+                throw IllegalArgumentException("The REALITY server name (sni) is missing.")
         require(SERVER_NAME_PATTERN.matches(serverName)) {
-            "The REALITY server name is invalid."
+            "The TLS/REALITY server name is invalid."
         }
-
-        val publicKey = query["pbk"]?.takeIf { it.isNotBlank() }
-            ?: query["publickey"]?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("The REALITY public key (pbk) is missing.")
-        require(REALITY_KEY_PATTERN.matches(publicKey)) {
-            "The REALITY public key is invalid."
-        }
-
-        val shortId = query["sid"] ?: query["shortid"].orEmpty()
-        require(SHORT_ID_PATTERN.matches(shortId)) { "The REALITY short ID is invalid." }
 
         val fingerprint = query["fp"]?.takeIf { it.isNotBlank() } ?: "chrome"
-        require(FINGERPRINT_PATTERN.matches(fingerprint)) { "The TLS fingerprint is invalid." }
-
-        val flow = query["flow"].orEmpty()
-        require(flow.isBlank() || flow == "xtls-rprx-vision") {
-            "This VLESS flow is not supported by this version."
+        require(FINGERPRINT_PATTERN.matches(fingerprint)) {
+            "The TLS fingerprint is invalid."
         }
-
         val tls = JSONObject()
             .put("enabled", true)
             .put("server_name", serverName)
             .put("utls", JSONObject().put("enabled", true).put("fingerprint", fingerprint))
-            .put(
+
+        if (security == "reality") {
+            val publicKey = query["pbk"]?.takeIf { it.isNotBlank() }
+                ?: query["publickey"]?.takeIf { it.isNotBlank() }
+                ?: throw IllegalArgumentException("The REALITY public key (pbk) is missing.")
+            require(REALITY_KEY_PATTERN.matches(publicKey)) {
+                "The REALITY public key is invalid."
+            }
+            val shortId = query["sid"] ?: query["shortid"].orEmpty()
+            require(SHORT_ID_PATTERN.matches(shortId)) {
+                "The REALITY short ID is invalid."
+            }
+            tls.put(
                 "reality",
                 JSONObject()
                     .put("enabled", true)
                     .put("public_key", publicKey)
                     .put("short_id", shortId)
             )
+        }
+
+        val flow = query["flow"].orEmpty()
+        require(flow.isBlank() || (
+            flow == "xtls-rprx-vision" &&
+                security == "reality" &&
+                (transport == "tcp" || transport == "raw")
+        )) {
+            "XTLS Vision is supported only with VLESS + REALITY over TCP."
+        }
 
         val outbound = JSONObject()
             .put("type", "vless")
@@ -134,6 +145,42 @@ internal object IranVpnProfileParser {
             .put("domain_resolver", "dns-local")
             .put("tls", tls)
         if (flow.isNotBlank()) outbound.put("flow", flow)
+
+        when (transport) {
+            "ws" -> {
+                val ws = JSONObject()
+                    .put("type", "ws")
+                    .put("path", query["path"]?.takeIf { it.isNotBlank() } ?: "/")
+                val hostHeader = query["host"]?.substringBefore(",")?.takeIf { it.isNotBlank() }
+                if (hostHeader != null) ws.put("headers", JSONObject().put("Host", hostHeader))
+                outbound.put("transport", ws)
+            }
+            "grpc" -> {
+                val serviceName = query["servicename"]?.takeIf { it.isNotBlank() }
+                    ?: query["service_name"]?.takeIf { it.isNotBlank() }
+                    ?: query["service"]?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalArgumentException("The gRPC service name is missing.")
+                outbound.put(
+                    "transport",
+                    JSONObject().put("type", "grpc").put("service_name", serviceName)
+                )
+            }
+            "http" -> {
+                val http = JSONObject()
+                    .put("type", "http")
+                    .put("path", query["path"]?.takeIf { it.isNotBlank() } ?: "/")
+                val hosts = query["host"]?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }
+                if (!hosts.isNullOrEmpty()) http.put("host", JSONArray(hosts))
+                outbound.put("transport", http)
+            }
+            "httpupgrade" -> {
+                val upgrade = JSONObject()
+                    .put("type", "httpupgrade")
+                    .put("path", query["path"]?.takeIf { it.isNotBlank() } ?: "/")
+                query["host"]?.takeIf { it.isNotBlank() }?.let { upgrade.put("host", it) }
+                outbound.put("transport", upgrade)
+            }
+        }
 
         val name = uri.rawFragment?.let { runCatching { decode(it) }.getOrNull() }
             ?.replace(Regex("[\\p{Cntrl}]+"), " ")
@@ -295,7 +342,7 @@ internal object IranVpnProfileParser {
         val outbound: JSONObject
     )
 
-    private const val MAX_AUTO_NODES = 30
+    private const val MAX_AUTO_NODES = 45
     const val URL_TEST_ENDPOINT = "https://cp.cloudflare.com/generate_204"
     private val SERVER_NAME_PATTERN = Regex("^[A-Za-z0-9.-]{1,253}$")
     private val REALITY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,64}$")

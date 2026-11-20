@@ -134,27 +134,70 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     error(getString(R.string.iran_no_server_passed_test))
                 }
 
-                val chosenTag = if (selectedOutboundTag == AUTO_OUTBOUND_TAG) {
-                    selectBestServer(healthResults)?.tag
-                        ?: error(getString(R.string.iran_no_server_passed_test))
-                } else {
-                    val manuallyChosen = healthResults.firstOrNull { it.tag == selectedOutboundTag }
-                    if (manuallyChosen == null || manuallyChosen.pingMs <= 0) {
-                        error(getString(R.string.iran_manual_server_unavailable))
+                val rankedTags = ServerHealthScorer.rank(
+                    healthResults.map { result ->
+                        ServerQualitySample(
+                            tag = result.tag,
+                            pingMs = result.pingMs,
+                            speedMbps = result.speedMbps,
+                            successRate = result.successRate,
+                            jitterMs = result.jitterMs
+                        )
                     }
-                    selectedOutboundTag
+                )
+                val manualTag = selectedOutboundTag.takeIf { it != AUTO_OUTBOUND_TAG }
+                val candidateOrder = buildList {
+                    manualTag?.let(::add)
+                    rankedTags.forEach { tag -> if (tag !in this) add(tag) }
+                }.take(MAX_CONNECT_CANDIDATE_ATTEMPTS)
+
+                var chosen: ServerHealthResult? = null
+                var lastFailure = getString(R.string.iran_internet_test_failed)
+                var attemptedCandidates = 0
+
+                for ((index, tag) in candidateOrder.withIndex()) {
+                    val candidate = healthResults.firstOrNull { it.tag == tag } ?: continue
+                    attemptedCandidates++
+                    updateForegroundNotification(
+                        getString(
+                            R.string.iran_testing_server,
+                            index + 1,
+                            candidateOrder.size,
+                            candidate.host
+                        )
+                    )
+                    try {
+                        selectOutbound(secret, candidate.tag)
+                        kotlinx.coroutines.delay(300)
+
+                        if (!verifyInternetThroughLocalProxy()) {
+                            lastFailure = getString(R.string.iran_proxy_test_failed)
+                            Log.w(TAG, "Candidate ${candidate.tag} failed the local proxy Internet check.")
+                            continue
+                        }
+                        if (!verifyInternetThroughTun()) {
+                            lastFailure = getString(R.string.iran_tun_internet_test_failed)
+                            Log.w(TAG, "Candidate ${candidate.tag} failed the Android TUN Internet check.")
+                            continue
+                        }
+                        chosen = candidate
+                        break
+                    } catch (candidateError: Exception) {
+                        lastFailure = candidateError.localizedMessage
+                            ?: getString(R.string.status_error)
+                        Log.w(TAG, "Candidate ${candidate.tag} failed end-to-end verification.", candidateError)
+                    }
                 }
 
-                selectOutbound(secret, chosenTag)
-                kotlinx.coroutines.delay(350)
-                if (!verifyInternetThroughLocalProxy()) {
-                    error(getString(R.string.iran_internet_test_failed))
-                }
-                if (!verifyInternetThroughTun()) {
-                    error(getString(R.string.iran_tun_internet_test_failed))
-                }
-
-                val chosen = healthResults.first { it.tag == chosenTag }
+                val verifiedServer = chosen ?: error(
+                    getString(
+                        R.string.iran_all_candidates_failed,
+                        attemptedCandidates,
+                        lastFailure
+                    )
+                )
+                val chosenTag = verifiedServer.tag
+                val chosen = verifiedServer
                 publishStatus(
                     IranVpnContract.STATE_CONNECTED,
                     getString(R.string.iran_connected_verified),
@@ -430,7 +473,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun testOutboundLatency(secret: String, tag: String): Int {
-        INTERNET_TEST_URLS.forEach { testUrl ->
+        PING_TEST_URLS.forEach { testUrl ->
             val delayMs = runCatching {
                 val url = URLEncoder.encode(testUrl, "UTF-8")
                 callController(
@@ -612,6 +655,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 connection.apply {
                     connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
                     readTimeout = INTERNET_VERIFY_TIMEOUT_MS
+                    instanceFollowRedirects = true
                     requestMethod = "GET"
                     useCaches = false
                     setRequestProperty("Cache-Control", "no-cache")
@@ -1110,13 +1154,22 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val CONTROLLER_READY_INTERVAL_MS = 500L
         const val PING_TEST_URL = "https://cp.cloudflare.com/generate_204"
         const val FALLBACK_PING_TEST_URL = "https://connectivitycheck.gstatic.com/generate_204"
-        val INTERNET_TEST_URLS = listOf(PING_TEST_URL, FALLBACK_PING_TEST_URL)
-        const val PING_TEST_TIMEOUT_MS = 6_000
+        val INTERNET_TEST_URLS = listOf(
+            PING_TEST_URL,
+            "https://www.google.com/generate_204",
+            FALLBACK_PING_TEST_URL,
+            "https://www.gstatic.com/generate_204",
+            "https://detectportal.firefox.com/success.txt",
+            "https://www.cloudflare.com/cdn-cgi/trace"
+        )
+        val PING_TEST_URLS = INTERNET_TEST_URLS.take(4)
+        const val PING_TEST_TIMEOUT_MS = 4_500
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
         const val SPEED_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_MAX_BYTES = 128L * 1024L
         const val SPEED_TEST_MIN_BYTES = 32L * 1024L
-        const val INTERNET_VERIFY_TIMEOUT_MS = 8_000
+        const val INTERNET_VERIFY_TIMEOUT_MS = 5_000
+        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 18
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
         const val MAX_PARALLEL_PING_TESTS = 6

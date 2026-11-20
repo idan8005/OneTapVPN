@@ -79,6 +79,59 @@ class IranVpnProfileParserTest {
     }
 
     @Test
+    fun acceptsVlessTlsTcpWithoutDisablingCertificateValidation() {
+        val link =
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443" +
+                "?encryption=none&security=tls&sni=www.example.com&fp=chrome&type=tcp#TLS"
+        val outbound = JSONObject(IranVpnProfileParser.parse(link).configJson)
+            .getJSONArray("outbounds").getJSONObject(0)
+        val tls = outbound.getJSONObject("tls")
+        assertEquals(true, tls.getBoolean("enabled"))
+        assertEquals("www.example.com", tls.getString("server_name"))
+        org.junit.Assert.assertFalse(tls.optBoolean("insecure", false))
+        org.junit.Assert.assertFalse(tls.has("reality"))
+    }
+
+    @Test
+    fun acceptsVlessTlsWebSocketTransport() {
+        val link =
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443" +
+                "?encryption=none&security=tls&sni=cdn.example.com&host=edge.example.net" +
+                "&path=%2Fws&type=ws#WS"
+        val outbound = JSONObject(IranVpnProfileParser.parse(link).configJson)
+            .getJSONArray("outbounds").getJSONObject(0)
+        val transport = outbound.getJSONObject("transport")
+        assertEquals("ws", transport.getString("type"))
+        assertEquals("/ws", transport.getString("path"))
+        assertEquals("edge.example.net", transport.getJSONObject("headers").getString("Host"))
+    }
+
+    @Test
+    fun acceptsVlessRealityGrpcTransport() {
+        val link =
+            "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443" +
+                "?encryption=none&security=reality&sni=www.example.com&fp=chrome" +
+                "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=0123abcd" +
+                "&type=grpc&serviceName=cloud-grpc#GRPC"
+        val outbound = JSONObject(IranVpnProfileParser.parse(link).configJson)
+            .getJSONArray("outbounds").getJSONObject(0)
+        assertEquals("grpc", outbound.getJSONObject("transport").getString("type"))
+        assertEquals("cloud-grpc", outbound.getJSONObject("transport").getString("service_name"))
+    }
+
+    @Test
+    fun rejectsVlessWithoutEncryptionOrUnsupportedTransport() {
+        val unencrypted = validLink.replace("security=reality", "security=none")
+        assertThrows(IllegalArgumentException::class.java) {
+            IranVpnProfileParser.parse(unencrypted)
+        }
+        val unsupported = validLink.replace("type=tcp", "type=xhttp")
+        assertThrows(IllegalArgumentException::class.java) {
+            IranVpnProfileParser.parse(unsupported)
+        }
+    }
+
+    @Test
     fun acceptsServerNamesWithSpacesAndUnicodeInUriFragment() {
         val link = validLink.substringBefore("#") + "#US 🇺🇸 | test server"
         val profile = IranVpnProfileParser.parse(link)

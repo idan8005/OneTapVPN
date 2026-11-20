@@ -39,6 +39,22 @@ class ServerHealthScorerTest {
     }
 
     @Test
+    fun keepsUnmeasuredRespondingServersAsFallbackCandidates() {
+        val ranked = ServerHealthScorer.rank(
+            listOf(
+                ServerQualitySample("fast-measured", 18, 72.0),
+                ServerQualitySample("slower-measured", 52, 31.0),
+                ServerQualitySample("not-speed-tested", 34, -1.0),
+                ServerQualitySample("offline", -1, -1.0)
+            )
+        )
+        assertEquals(
+            listOf("fast-measured", "slower-measured", "not-speed-tested"),
+            ranked
+        )
+    }
+
+    @Test
     fun ignoresOfflineServersAndReturnsNullWhenAllAreOffline() {
         assertEquals(
             "online",

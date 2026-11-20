@@ -120,6 +120,9 @@
     <string name="iran_manual_server_unavailable">سرور انتخاب‌شدهٔ دستی آزمایش اتصال را نگذرانده است. سرور دیگری انتخاب کن.</string>
     <string name="iran_internet_test_failed">سرور پاسخ داد، اما آزمایش اینترنت از داخل VPN ناموفق بود؛ این سرور متصل اعلام نشد.</string>
     <string name="iran_connected_verified">دسترسی اینترنت از طریق سرور انتخاب‌شده بررسی و تأیید شد.</string>
+    <string name="iran_testing_server">در حال آزمایش سرور %1$d از %2$d · %3$s</string>
+    <string name="iran_proxy_test_failed">سرور پاسخ داد اما نتوانست اینترنت را از مسیر پروکسی عبور دهد.</string>
+    <string name="iran_all_candidates_failed">%1$d سرور پاسخ‌گو آزمایش شد، اما هیچ‌کدام اینترنت کامل نداشتند. آخرین نتیجه: %2$s</string>
     <string name="server_health_checking">در حال آزمایش…</string>
     <string name="server_health_offline">بدون پاسخ / قطع</string>
     <string name="server_health_metrics">پینگ %1$d ms · سرعت %2$.1f Mbps</string>
