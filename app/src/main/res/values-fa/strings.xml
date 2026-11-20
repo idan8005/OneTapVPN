@@ -61,4 +61,20 @@
     <string name="update_initial">برای بررسی نسخه جدید، انتشارهای گیت‌هاب را بررسی کنید.</string>
     <string name="server_already_active">یک اتصال VPN از قبل فعال است.</string>
     <string name="connected_existing_session">اتصال VPN قبلی بازیابی شد.</string>
+    <string name="iran_mode_title">حالت سازگاری با اینترنت ایران · VLESS + REALITY</string>
+    <string name="iran_mode_description">لینک سرور VLESS + REALITY خودتان را وارد کنید. برای اتصال به سرور معتبر نیاز است و سرور رایگان تضمین نمی‌شود.</string>
+    <string name="iran_import_profile">واردکردن لینک VLESS</string>
+    <string name="iran_connect">اتصال با حالت ایران</string>
+    <string name="iran_disconnect">قطع اتصال حالت ایران</string>
+    <string name="iran_profile_empty">هنوز پروفایل حالت ایران وارد نشده است.</string>
+    <string name="iran_profile_loaded">پروفایل آماده است: %1$s:%2$d</string>
+    <string name="iran_profile_invalid">واردکردن پروفایل ناموفق بود: %1$s</string>
+    <string name="iran_profile_input_hint">لینک vless:// را با security=reality و پارامترهای pbk، sni و sid وارد کنید.</string>
+    <string name="iran_engine_starting">در حال راه‌اندازی موتور جایگزین VPN…</string>
+    <string name="iran_engine_started">موتور جایگزین VPN شروع به کار کرد؛ در انتظار وضعیت تونل.</string>
+    <string name="iran_engine_error">اتصال در حالت ایران ناموفق بود: %1$s</string>
+    <string name="iran_profile_missing">ابتدا لینک VLESS + REALITY را وارد کنید.</string>
+    <string name="iran_disconnected">اتصال VPN حالت ایران قطع شد.</string>
+    <string name="iran_notification_channel">اتصال VPN حالت ایران</string>
+    <string name="iran_vpn_session">راحت VPN · حالت ایران</string>
 </resources>
