@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     private var routing = RoutingSettings()
     private var serverProfiles: List<IranVpnProfile> = emptyList()
     private var selectedServerKey: String = IranVpnProfileStore.AUTO_SELECTION_KEY
+    private var serverNotice: String? = null
     private var uiState = UiState.IDLE
     private var connectionRequested = false
     private var connectionMessage = ""
@@ -120,6 +121,7 @@ class MainActivity : AppCompatActivity() {
         routing = routingPreferences.read()
         serverProfiles = profileStore.readServers()
         selectedServerKey = profileStore.readSelectionKey()
+        reconcileSelectionAfterRefresh()
         setContentView(createContent())
         registerStatusReceiver()
         updateCachedProfileSummary()
@@ -403,7 +405,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTunnel() {
         if (!connectionRequested) return
-        val profile = pendingProfile ?: profileStore.read()
+        val profile = pendingProfile ?: profileStore.selectedProfile()
         if (profile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
@@ -501,7 +503,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0)
         }
-        serverSummaryText.text = listOfNotNull(message, selectionText, listText).joinToString("\\n")
+        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\n")
     }
 
     private fun reconcileSelectionAfterRefresh() {
@@ -559,41 +561,32 @@ class MainActivity : AppCompatActivity() {
         if (serverRefreshJob?.isActive == true) return
 
         serverRefreshButton.isEnabled = false
-        serverSummaryText.text = getString(R.string.server_refreshing)
+        serverNotice = getString(R.string.server_refreshing)
+        renderServerSelection()
         serverRefreshJob = lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { discovery.discover() }
                 profileStore.saveDiscovery(result.profile, result.servers)
                 serverProfiles = result.servers
                 reconcileSelectionAfterRefresh()
-                renderServerSelection(
-                    getString(R.string.server_refresh_success, result.servers.size, result.sourceCount)
-                )
+                serverNotice = getString(R.string.server_refresh_success, result.servers.size, result.sourceCount)
+                renderServerSelection()
                 Toast.makeText(
                     this@MainActivity,
                     getString(R.string.server_refresh_success_toast, result.servers.size),
                     Toast.LENGTH_LONG
                 ).show()
             } catch (error: Exception) {
-                renderServerSelection(
-                    getString(
-                        R.string.server_refresh_failed,
-                        error.localizedMessage ?: getString(R.string.status_error)
-                    )
+                serverNotice = getString(
+                    R.string.server_refresh_failed,
+                    error.localizedMessage ?: getString(R.string.status_error)
                 )
+                renderServerSelection()
             } finally {
                 serverRefreshJob = null
                 render()
-                renderServerSelectionIfAvailable()
+                renderServerSelection()
             }
-        }
-    }
-
-    private fun renderServerSelectionIfAvailable() {
-        if (::serverSummaryText.isInitialized &&
-            !serverSummaryText.text.toString().contains(getString(R.string.server_refresh_failed))
-        ) {
-            renderServerSelection()
         }
     }
 
