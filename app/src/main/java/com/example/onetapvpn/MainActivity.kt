@@ -135,11 +135,11 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         header.addView(ImageView(this).apply {
-            setImageResource(R.drawable.ic_vpn_shield)
+            setImageResource(R.drawable.ic_raahat_vpn)
             contentDescription = getString(R.string.app_name)
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brand.addView(label(getString(R.string.app_name), 22f, Color.WHITE, Typeface.BOLD))
+        brand.addView(label(getString(R.string.app_name), 22f, Color.WHITE, Typeface.BOLD).apply { id = R.id.brand_title })
         brand.addView(label(getString(R.string.app_tagline), 13f, Color.rgb(156, 174, 201)))
         header.addView(brand, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
             marginStart = dp(12)
@@ -188,10 +188,32 @@ class MainActivity : AppCompatActivity() {
         hero.addView(heroContent)
         content.addView(hero, matchWrap().apply { topMargin = dp(28) })
 
-        content.addView(label(getString(R.string.profile_section), 17f, Color.WHITE, Typeface.BOLD), matchWrap().apply {
-            topMargin = dp(26)
-            bottomMargin = dp(10)
-        })
+        val advancedPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        val advancedButton = MaterialButton(
+            this,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            id = R.id.advanced_settings_button
+            text = getString(R.string.advanced_settings)
+            isAllCaps = false
+            setOnClickListener {
+                val expanded = advancedPanel.visibility != View.VISIBLE
+                advancedPanel.visibility = if (expanded) View.VISIBLE else View.GONE
+                text = getString(
+                    if (expanded) R.string.hide_advanced_settings else R.string.advanced_settings
+                )
+            }
+        }
+        content.addView(advancedButton, matchWrap().apply { topMargin = dp(18) })
+
+        advancedPanel.addView(
+            label(getString(R.string.profile_section), 17f, Color.WHITE, Typeface.BOLD),
+            matchWrap().apply { bottomMargin = dp(10) }
+        )
         val importCard = card(Color.rgb(14, 25, 44), Color.rgb(34, 51, 75))
         val importContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -235,11 +257,13 @@ class MainActivity : AppCompatActivity() {
             matchWrap().apply { topMargin = dp(8) }
         )
         importCard.addView(importContent)
-        content.addView(importCard, matchWrap())
+        advancedPanel.addView(importCard, matchWrap())
 
-        content.addView(label(getString(R.string.warp_note), 12f, Color.rgb(133, 153, 182)), matchWrap().apply {
-            topMargin = dp(18)
-        })
+        advancedPanel.addView(
+            label(getString(R.string.warp_note), 12f, Color.rgb(133, 153, 182)),
+            matchWrap().apply { topMargin = dp(14) }
+        )
+        content.addView(advancedPanel, matchWrap().apply { topMargin = dp(10) })
         return scroll
     }
 
@@ -264,7 +288,7 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
                 pendingExportProfile = profile
-                profileSaver.launch("OneTapVPN-profile.conf")
+                profileSaver.launch("RaahatVPN-profile.conf")
             } catch (error: Exception) {
                 detailText.text = getString(
                     R.string.profile_export_failed_detail,
