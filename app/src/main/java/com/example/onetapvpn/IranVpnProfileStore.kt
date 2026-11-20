@@ -14,6 +14,8 @@ internal class IranVpnProfileStore(context: Context) {
                 .putString(KEY_HOST, profile.serverHost)
                 .putInt(KEY_PORT, profile.serverPort)
                 .putString(KEY_CONFIG, profile.configJson)
+                .putInt(KEY_CANDIDATES, profile.candidateCount)
+                .putInt(KEY_SOURCES, profile.sourceCount)
                 .putLong(KEY_SAVED_AT, System.currentTimeMillis())
                 .commit()
         ) { "Could not save the Iran VPN profile." }
@@ -24,7 +26,9 @@ internal class IranVpnProfileStore(context: Context) {
         val host = preferences.getString(KEY_HOST, null)?.takeIf { it.isNotBlank() } ?: return null
         val name = preferences.getString(KEY_NAME, host).orEmpty()
         val port = preferences.getInt(KEY_PORT, 0)
-        return IranVpnProfile(name, host, port, config)
+        val candidates = preferences.getInt(KEY_CANDIDATES, 1)
+        val sources = preferences.getInt(KEY_SOURCES, 1)
+        return IranVpnProfile(name, host, port, config, candidates, sources)
     }
 
     fun isStale(maxAgeMillis: Long = DEFAULT_MAX_AGE_MS): Boolean {
@@ -42,6 +46,8 @@ internal class IranVpnProfileStore(context: Context) {
         const val KEY_HOST = "host"
         const val KEY_PORT = "port"
         const val KEY_CONFIG = "config"
+        const val KEY_CANDIDATES = "candidates"
+        const val KEY_SOURCES = "sources"
         const val KEY_SAVED_AT = "saved_at"
         const val DEFAULT_MAX_AGE_MS = 20 * 60 * 1000L
     }
