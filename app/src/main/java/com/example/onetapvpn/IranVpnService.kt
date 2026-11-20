@@ -819,12 +819,25 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 builder.addDnsServer(dns.next())
                 dnsServerCount++
             }
-            // Avoid creating a VPN interface without any DNS servers on devices where
-            // libbox has no Android DNS addresses to hand to VpnService.Builder.
+            // Prefer the DNS servers from the current underlying network when
+            // libbox does not supply any. Fall back to public resolvers only when
+            // Android has no usable network DNS addresses.
             if (dnsServerCount == 0) {
-                builder.addDnsServer("1.1.1.1")
-                builder.addDnsServer("8.8.8.8")
-                Log.w(TAG, "sing-box supplied no DNS addresses; installed public DNS fallback addresses.")
+                val activeNetwork = connectivity.activeNetwork
+                val networkDns = activeNetwork
+                    ?.let { connectivity.getLinkProperties(it)?.dnsServers }
+                    .orEmpty()
+                    .filterNot { it.isAnyLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress }
+                    .mapNotNull { it.hostAddress?.substringBefore('%')?.takeIf(String::isNotBlank) }
+                    .distinct()
+                    .take(2)
+                val fallbackDns = networkDns.ifEmpty { listOf("1.1.1.1", "8.8.8.8") }
+                fallbackDns.forEach { dnsServer -> builder.addDnsServer(dnsServer) }
+                if (networkDns.isEmpty()) {
+                    Log.w(TAG, "No usable DNS servers were reported by Android; installed public DNS fallbacks.")
+                } else {
+                    Log.i(TAG, "Installed DNS addresses from the active underlying network.")
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
