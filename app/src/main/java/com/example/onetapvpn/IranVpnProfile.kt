@@ -132,7 +132,7 @@ internal object IranVpnProfileParser {
             .put("tls", tls)
         if (flow.isNotBlank()) outbound.put("flow", flow)
 
-        val name = uri.fragment?.let { runCatching { decode(it) }.getOrNull() }
+        val name = uri.rawFragment?.let { runCatching { decode(it) }.getOrNull() }
             ?.replace(Regex("[\\p{Cntrl}]+"), " ")
             ?.take(40)
             ?.takeIf { it.isNotBlank() }
