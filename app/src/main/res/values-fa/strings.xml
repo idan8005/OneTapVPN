@@ -42,7 +42,6 @@
     <string name="refresh_servers">تازه‌سازی سرورها</string>
     <string name="update_title">به‌روزرسانی برنامه</string>
     <string name="check_updates">بررسی نسخه جدید</string>
-    <string name="download_update">دانلود به‌روزرسانی</string>
     <string name="update_checking">در حال بررسی نسخه جدید…</string>
     <string name="update_current">آخرین نسخه برنامه نصب است.</string>
     <string name="update_available">نسخه %1$s آماده دریافت است.</string>
