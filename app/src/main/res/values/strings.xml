@@ -140,4 +140,6 @@
     <string name="iran_speed_recovery">Active server speed has dropped. Checking faster alternatives…</string>
     <string name="iran_no_faster_server">No verified faster server is available right now. Keeping the current connection.</string>
     <string name="server_health_slow">Speed has dropped; checking alternatives</string>
+
+    <string name="iran_tun_route_failure">A server passed the proxy Internet test, but Android could not route Internet traffic through the VPN tunnel. This points to an Android tunnel or DNS routing problem, not a lack of servers.</string>
 </resources>

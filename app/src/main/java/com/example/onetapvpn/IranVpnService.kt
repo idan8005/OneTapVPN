@@ -154,6 +154,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 var verifiedCandidate: ServerHealthResult? = null
                 var lastFailure = getString(R.string.iran_internet_test_failed)
                 var attemptedCandidates = 0
+                var proxyVerifiedCandidates = 0
+                var consecutiveTunFailures = 0
 
                 for ((index, tag) in candidateOrder.withIndex()) {
                     val candidate = healthResults.firstOrNull { it.tag == tag } ?: continue
@@ -172,14 +174,26 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
                         if (!verifyInternetThroughLocalProxy()) {
                             lastFailure = getString(R.string.iran_proxy_test_failed)
+                            consecutiveTunFailures = 0
                             Log.w(TAG, "Candidate ${candidate.tag} failed the local proxy Internet check.")
                             continue
                         }
+                        proxyVerifiedCandidates++
                         if (!verifyInternetThroughTun()) {
                             lastFailure = getString(R.string.iran_tun_internet_test_failed)
-                            Log.w(TAG, "Candidate ${candidate.tag} failed the Android TUN Internet check.")
+                            consecutiveTunFailures++
+                            Log.w(
+                                TAG,
+                                "The proxy passed but Android TUN traffic failed for candidate " +
+                                    "${candidate.tag} ($consecutiveTunFailures consecutive TUN failures)."
+                            )
+                            // A broken Android TUN route/DNS affects every node.
+                            // Stop after several independent proxy-successful nodes
+                            // instead of wasting time switching through the entire list.
+                            if (consecutiveTunFailures >= MAX_TUN_FAILURES_BEFORE_CLASSIFY) break
                             continue
                         }
+                        consecutiveTunFailures = 0
                         verifiedCandidate = candidate
                         break
                     } catch (candidateError: Exception) {
@@ -190,11 +204,17 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 }
 
                 val verifiedServer = verifiedCandidate ?: error(
-                    getString(
-                        R.string.iran_all_candidates_failed,
-                        attemptedCandidates,
-                        lastFailure
-                    )
+                    if (consecutiveTunFailures >= MAX_TUN_FAILURES_BEFORE_CLASSIFY &&
+                        proxyVerifiedCandidates >= MAX_TUN_FAILURES_BEFORE_CLASSIFY
+                    ) {
+                        getString(R.string.iran_tun_route_failure)
+                    } else {
+                        getString(
+                            R.string.iran_all_candidates_failed,
+                            attemptedCandidates,
+                            lastFailure
+                        )
+                    }
                 )
                 val chosenTag = verifiedServer.tag
                 val chosen = verifiedServer
@@ -1270,14 +1290,26 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             "https://detectportal.firefox.com/success.txt",
             "https://www.cloudflare.com/cdn-cgi/trace"
         )
-        val PING_TEST_URLS = INTERNET_TEST_URLS.take(4)
-        const val PING_TEST_TIMEOUT_MS = 4_500
+        // Use independent operators (Cloudflare, Google, Mozilla,
+        // Microsoft and Apple). A blocked Google/Cloudflare endpoint must not
+        // make every otherwise-healthy server appear offline.
+        val PING_TEST_URLS = listOf(
+            PING_TEST_URL,
+            "https://www.google.com/generate_204",
+            FALLBACK_PING_TEST_URL,
+            "https://www.gstatic.com/generate_204",
+            "https://detectportal.firefox.com/success.txt",
+            "https://www.msftconnecttest.com/connecttest.txt",
+            "https://captive.apple.com/hotspot-detect.html"
+        )
+        const val PING_TEST_TIMEOUT_MS = 2_500
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
         const val SPEED_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_MAX_BYTES = 128L * 1024L
         const val SPEED_TEST_MIN_BYTES = 32L * 1024L
         const val INTERNET_VERIFY_TIMEOUT_MS = 5_000
-        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 18
+        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 45
+        const val MAX_TUN_FAILURES_BEFORE_CLASSIFY = 3
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
         const val MAX_PARALLEL_PING_TESTS = 6

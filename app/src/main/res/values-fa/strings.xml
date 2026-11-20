@@ -140,4 +140,6 @@
     <string name="iran_speed_recovery">سرعت سرور فعال افت کرده؛ در حال بررسی گزینه‌های سریع‌تر…</string>
     <string name="iran_no_faster_server">فعلاً سرور سریع‌تر و تأییدشده‌ای پیدا نشد؛ اتصال فعلی حفظ می‌شود.</string>
     <string name="server_health_slow">سرعت افت کرده؛ در حال بررسی جایگزین</string>
+
+    <string name="iran_tun_route_failure">سرور از مسیر پروکسی اینترنت داشت، اما اندروید نتوانست ترافیک را از تونل VPN عبور دهد. مشکل به مسیر تونل یا DNS اندروید مربوط است، نه کمبود سرور.</string>
 </resources>
