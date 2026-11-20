@@ -37,6 +37,7 @@ internal class VpnGateApi {
                     .thenBy { it.pingMs }
                     .thenByDescending { it.speedBitsPerSecond }
             )
+            .toList()
         if (servers.isEmpty()) throw IOException("No usable OpenVPN servers were returned.")
         return servers
     }
