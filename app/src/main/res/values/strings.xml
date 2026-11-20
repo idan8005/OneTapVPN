@@ -98,11 +98,11 @@
     <string name="server_auto_selected">Selected: Best server (automatic). sing-box tests %1$d available candidates and chooses a responsive one.</string>
     <string name="server_manual_selected">Selected manually: %1$s · %2$s:%3$d</string>
     <string name="server_picker_item">%1$s — %2$s:%3$d</string>
-    <string name="server_list_count">List: %1$d servers from %2$d sources</string>
+    <string name="server_list_count">Working servers shown: %1$d (from %2$d sources)</string>
     <string name="server_list_empty">No server list yet. Tap Refresh list.</string>
     <string name="server_selection_not_found">The selected server is no longer in the latest list. Choose another one.</string>
     <string name="server_connecting_to">Connecting to: %1$s</string>
-    <string name="server_refreshing">Downloading and checking the latest public server list…</string>
+    <string name="server_refreshing">Downloading public server sources…</string>
     <string name="server_refresh_success">Updated list: %1$d compatible servers from %2$d sources.</string>
     <string name="server_refresh_success_toast">%1$d compatible servers added to the list.</string>
     <string name="server_refresh_failed">Could not refresh servers: %1$s</string>
@@ -124,6 +124,11 @@
     <string name="server_health_ping_only">%1$d ms · speed unavailable</string>
     <string name="server_health_not_tested">Not tested yet</string>
     <string name="server_picker_item_with_health">%1$s — %2$s:%3$d · %4$s</string>
-    <string name="server_health_count">%1$d/%2$d servers responded to the ping test</string>
+    <string name="server_health_count">Responding servers: %1$d of %2$d candidates</string>
+    <string name="server_scan_starting">Testing every discovered server before showing it in the list…</string>
+    <string name="server_scan_complete">Server test finished: %1$d working servers out of %2$d candidates. Only working servers are shown.</string>
+    <string name="server_scan_failed">Could not complete the server test: %1$s</string>
+    <string name="server_scan_launch_failed">Could not start the background server test.</string>
+    <string name="server_scan_connect_wait">Please wait until the server test finishes.</string>
     <string name="iran_tun_internet_test_failed">The Android VPN interface test failed. Internet traffic is not passing through the tunnel.</string>
 </resources>
