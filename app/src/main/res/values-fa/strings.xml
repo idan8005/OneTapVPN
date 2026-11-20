@@ -60,4 +60,5 @@
     <string name="routing_help">مشخص کنید کدام برنامه‌ها از تونل VPN عبور کنند.</string>
     <string name="update_initial">برای بررسی نسخه جدید، انتشارهای گیت‌هاب را بررسی کنید.</string>
     <string name="server_already_active">یک اتصال VPN از قبل فعال است.</string>
+    <string name="connected_existing_session">اتصال VPN قبلی بازیابی شد.</string>
 </resources>
