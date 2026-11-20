@@ -5,7 +5,8 @@ internal data class VpnServer(
     val ip: String,
     val score: Long,
     val pingMs: Int,
-    val speedBytesPerSecond: Long,
+    /** VPN Gate publishes throughput in bits per second. */
+    val speedBitsPerSecond: Long,
     val country: String,
     val countryCode: String,
     val activeSessions: Long,
@@ -14,5 +15,5 @@ internal data class VpnServer(
     val configBase64: String
 ) {
     val speedMbps: Double
-        get() = speedBytesPerSecond * 8.0 / 1_000_000.0
+        get() = speedBitsPerSecond / 1_000_000.0
 }
