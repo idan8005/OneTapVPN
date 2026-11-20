@@ -2,7 +2,7 @@ name: Build, test and release Raahat VPN
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature/iran-singbox-mode]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
