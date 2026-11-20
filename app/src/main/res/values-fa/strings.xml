@@ -21,7 +21,6 @@
     <string name="reason_server_dropped">اتصال قطع شد؛ سرور بعدی در حال آزمایش است</string>
     <string name="reason_server_invalid">پیکربندی سرور اجرا نشد؛ سرور بعدی در حال آزمایش است</string>
     <string name="server_ready_count">%1$d سرور رایگان پیدا شد. بهترین گزینه انتخاب شد.</string>
-    <string name="server_refreshing">در حال تازه‌سازی فهرست سرورهای رایگان…</string>
     <string name="server_load_failed">دریافت فهرست سرورها ناموفق بود: %1$s</string>
     <string name="no_server_connected">اتصال به هیچ سروری برقرار نشد. فهرست را تازه‌سازی و دوباره امتحان کنید.</string>
     <string name="vpn_disconnected">VPN قطع شد.</string>
