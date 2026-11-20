@@ -119,4 +119,4 @@ internal class IranVpnProfileStore(context: Context) {
 }
 
 internal val IranVpnProfile.selectionKey: String
-    get() = "${serverHost.lowercase()}:$serverPort"
+    get() = "${serverHost.lowercase()}:$serverPort:${configJson.hashCode()}"
