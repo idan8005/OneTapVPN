@@ -73,12 +73,45 @@ internal class IranVpnProfileStore(context: Context) {
                             serverPort = item.optInt("port"),
                             configJson = config,
                             candidateCount = item.optInt("candidates", 1),
-                            sourceCount = item.optInt("sources", 1)
+                            sourceCount = item.optInt("sources", 1),
+                            pingMs = item.optInt("pingMs", -1),
+                            speedMbps = item.optDouble("speedMbps", -1.0),
+                            healthStatus = item.optString("healthStatus", "unknown")
                         )
                     )
                 }
             }
         }.getOrDefault(emptyList())
+    }
+
+    fun saveServerHealth(profile: IranVpnProfile) {
+        val updatedServers = readServers().map { current ->
+            if (current.selectionKey == profile.selectionKey) {
+                current.copy(
+                    pingMs = profile.pingMs,
+                    speedMbps = profile.speedMbps,
+                    healthStatus = profile.healthStatus
+                )
+            } else {
+                current
+            }
+        }
+        val array = JSONArray()
+        updatedServers.forEach { server ->
+            array.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.serverHost)
+                    .put("port", server.serverPort)
+                    .put("config", server.configJson)
+                    .put("candidates", server.candidateCount)
+                    .put("sources", server.sourceCount)
+                    .put("pingMs", server.pingMs)
+                    .put("speedMbps", server.speedMbps)
+                    .put("healthStatus", server.healthStatus)
+            )
+        }
+        preferences.edit().putString(KEY_SERVERS, array.toString()).apply()
     }
 
     fun saveSelection(serverKey: String) {
