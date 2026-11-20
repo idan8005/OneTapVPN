@@ -182,7 +182,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
         configStore.read()
     }
 
-    fun onVpnPermissionDenied() {
+    fun reportExternalMessage(message: String) {\n        _uiState.update { it.copy(message = message, isBusy = false) }\n    }\n\n    fun reportExternalError(message: String) {\n        _uiState.update { it.copy(status = VpnStatus.ERROR, message = message, isBusy = false) }\n    }\n\n    fun onVpnPermissionDenied() {
         _uiState.update {
             it.copy(
                 status = VpnStatus.DISCONNECTED,
