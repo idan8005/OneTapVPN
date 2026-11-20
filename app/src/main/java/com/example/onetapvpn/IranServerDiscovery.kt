@@ -144,6 +144,29 @@ internal class IranServerDiscovery {
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
 
         val FEEDS = listOf(
+            // Independently tested VLESS-only feed. The upstream runs real
+            // sing-box HTTP-over-proxy tests and refreshes its results hourly.
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/protocol/vless/v2ray-base64-0001.txt",
+                    "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0001.txt",
+                    "https://fastly.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0001.txt"
+                )
+            ),
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/protocol/vless/v2ray-base64-0002.txt",
+                    "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0002.txt",
+                    "https://fastly.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0002.txt"
+                )
+            ),
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/protocol/vless/v2ray-base64-0003.txt",
+                    "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0003.txt",
+                    "https://fastly.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/protocol/vless/v2ray-base64-0003.txt"
+                )
+            ),
             Feed(
                 listOf(
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
