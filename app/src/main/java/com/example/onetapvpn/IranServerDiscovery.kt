@@ -101,6 +101,8 @@ internal class IranServerDiscovery {
 
         val decoded = runCatching {
             String(Base64.decode(compact, Base64.DEFAULT), StandardCharsets.UTF_8)
+        }.recoverCatching {
+            String(Base64.decode(compact, Base64.URL_SAFE), StandardCharsets.UTF_8)
         }.getOrNull() ?: return emptyList()
 
         return findVlessLines(decoded)
@@ -117,8 +119,8 @@ internal class IranServerDiscovery {
     private data class Feed(val mirrors: List<String>)
 
     private companion object {
-        const val CONNECT_TIMEOUT_MS = 9_000
-        const val READ_TIMEOUT_MS = 12_000
+        const val CONNECT_TIMEOUT_MS = 6_500
+        const val READ_TIMEOUT_MS = 9_000
         const val MAX_SOURCE_BYTES = 1_500_000
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
@@ -135,6 +137,12 @@ internal class IranServerDiscovery {
                 listOf(
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
                     "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt"
+                )
+            ),
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best-base64.txt",
+                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt"
                 )
             ),
             Feed(
