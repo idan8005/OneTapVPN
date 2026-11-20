@@ -17,6 +17,12 @@
     <string name="profile_description">در اولین اتصال، برنامه تلاش می‌کند پروفایل رایگان WARP را خودکار بسازد. همچنین می‌توانید فایل پیکربندی WireGuard خودتان را وارد کنید.</string>
     <string name="import_file">وارد کردن فایل WireGuard</string>
     <string name="paste_clipboard">وارد کردن تنظیمات از حافظه موقت</string>
+    <string name="export_profile">خروجی گرفتن از پروفایل WireGuard</string>
+    <string name="export_profile_warning">فایل خروجی شامل کلید خصوصی VPN است. آن را محرمانه نگه دارید و پس از وارد کردن در نصب جدید، حذف کنید.</string>
+    <string name="profile_exported">پروفایل صادر شد. این فایل شامل کلید خصوصی VPN است؛ آن را در جای امن نگه دارید.</string>
+    <string name="no_profile_to_export">پروفایل ذخیره‌شده‌ای برای خروجی گرفتن وجود ندارد.</string>
+    <string name="profile_export_failed">ساخت فایل پروفایل ممکن نشد.</string>
+    <string name="profile_export_failed_detail">خروجی گرفتن از پروفایل ناموفق بود: %1$s</string>
     <string name="warp_note">ثبت‌نام WARP از یک نشانی غیررسمی Cloudflare استفاده می‌کند و ممکن است با تغییر سرویس از کار بیفتد. WARP انتخاب دستی کشور یا سرویس نامحدود تضمین‌شده ارائه نمی‌دهد.</string>
     <string name="clipboard_empty">حافظه موقت خالی است.</string>
     <string name="disconnect_before_import">برای جایگزینی پروفایل فعال، ابتدا VPN را قطع کنید.</string>
