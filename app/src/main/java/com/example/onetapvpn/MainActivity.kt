@@ -497,7 +497,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val controlsAvailable = uiState == UiState.IDLE || uiState == UiState.ERROR
-        serverSelectButton.isEnabled = controlsAvailable
+        serverSelectButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true
         serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true
         routeText.text = when (routing.mode) {
             RoutingMode.FULL_TUNNEL -> getString(R.string.full_tunnel_description)
