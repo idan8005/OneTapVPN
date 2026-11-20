@@ -48,16 +48,6 @@ jobs:
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Run UI smoke test on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
-
       - name: Build debug APK
         run: gradle --no-daemon clean :app:assembleDebug
 
@@ -129,3 +119,58 @@ jobs:
             release-signature.txt
           if-no-files-found: error
           retention-days: 30
+
+      - name: Check runner capacity before emulator startup
+        run: |
+          echo "Available disk space:"
+          df -h /
+          echo "Available inodes:"
+          df -i /
+          echo "Android and Gradle cache sizes:"
+          du -sh "$ANDROID_HOME" "$HOME/.android" "$HOME/.gradle" 2>/dev/null || true
+
+      - name: Run UI smoke test on Android emulator
+        id: ui_smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          avd-name: onetapvpn-ci
+          force-avd-creation: true
+          emulator-port: 5556
+          emulator-boot-timeout: 600
+          disk-size: 4G
+          sdcard-path-or-size: 256M
+          ram-size: 2048M
+          heap-size: 512M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb devices -l
+            SERIAL="$(adb devices | awk '$2 == "device" { print $1; exit }')"
+            if [[ -z "$SERIAL" ]]; then
+              echo "No booted Android emulator is visible to ADB."
+              exit 1
+            fi
+            export ANDROID_SERIAL="$SERIAL"
+            adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed
+            gradle --no-daemon :app:connectedDebugAndroidTest
+
+      - name: Collect emulator diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "ADB devices:"
+          adb devices -l
+          echo "Runner disk:"
+          df -h /
+          echo "AVD files and logs:"
+          find "$HOME/.android/avd" -maxdepth 3 -type f \( -name 'emulator*.log' -o -name 'config.ini' \) -print 2>/dev/null
+          while IFS= read -r log_file; do
+            echo "===== $log_file ====="
+            tail -n 160 "$log_file"
+          done < <(find "$HOME/.android/avd" -maxdepth 3 -type f -name 'emulator*.log' 2>/dev/null)
