@@ -91,5 +91,4 @@
     <string name="update_button">App update</string>
     <string name="privacy_short">Free servers are operated by third parties. Do not use them for banking or confidential data.</string>
     <string name="vpn_permission_required">Approve the Android VPN permission prompt to continue.</string>
-    <string name="iran_connected">VPN tunnel is active. Confirm internet access by opening a website.</string>
 </resources>
