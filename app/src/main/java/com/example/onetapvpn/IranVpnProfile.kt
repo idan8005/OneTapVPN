@@ -82,6 +82,7 @@ internal object IranVpnProfileParser {
             .put("server", host)
             .put("server_port", port)
             .put("uuid", uuid)
+            .put("domain_resolver", "dns-remote")
             .put("tls", tls)
         if (flow.isNotBlank()) outbound.put("flow", flow)
 
@@ -97,7 +98,7 @@ internal object IranVpnProfileParser {
                                 .put("type", "tls")
                                 .put("tag", "dns-remote")
                                 .put("server", "1.1.1.1")
-                                .put("detour", "proxy")
+                                .put("tls", JSONObject().put("enabled", true).put("server_name", "cloudflare-dns.com"))
                         )
                     )
                     .put("final", "dns-remote")
