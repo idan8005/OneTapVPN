@@ -641,9 +641,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         val controlsAvailable = uiState == UiState.IDLE || uiState == UiState.ERROR
-        serverSelectButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true && !serverScanActive
-        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true &&
-            hybridSyncJob?.isActive != true && !serverScanActive
+        val catalogBusy = serverRefreshJob?.isActive == true ||
+            hybridSyncJob?.isActive == true || serverScanActive
+        serverSelectButton.isEnabled = controlsAvailable && !catalogBusy
+        serverRefreshButton.isEnabled = controlsAvailable && !catalogBusy
         routeText.text = when (routing.mode) {
             RoutingMode.FULL_TUNNEL -> getString(R.string.full_tunnel_description)
             RoutingMode.SELECTED_APPS -> getString(R.string.selected_apps_description) +
@@ -753,7 +754,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 getString(R.string.hybrid_switch_premium)
             }
-            tierSwitchButton.isEnabled = uiState == UiState.IDLE || uiState == UiState.ERROR
+            tierSwitchButton.isEnabled = (uiState == UiState.IDLE || uiState == UiState.ERROR) &&
+                serverRefreshJob?.isActive != true && hybridSyncJob?.isActive != true && !serverScanActive
         }
     }
 
@@ -965,7 +967,7 @@ class MainActivity : AppCompatActivity() {
                     R.string.hybrid_sync_failed,
                     error.localizedMessage ?: getString(R.string.status_error)
                 )
-                Toast.makeText(this@MainActivity, serverNotice, Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, serverNotice.orEmpty(), Toast.LENGTH_LONG).show()
             } finally {
                 hybridSyncJob = null
                 renderServerSelection()
