@@ -35,7 +35,20 @@ internal class IranServerDiscovery {
             }.awaitAll().filterNotNull()
         }
 
-        val links = fetched.flatMap { it.second }.distinct()
+        // Interleave feeds before the parser caps the candidate set, so a
+        // single large source cannot crowd every other provider out.
+        val sourceCandidates = fetched.map { it.second.distinct() }
+        val links = buildList {
+            var index = 0
+            while (size < MAX_INTERLEAVED_CANDIDATES &&
+                sourceCandidates.any { index < it.size }
+            ) {
+                sourceCandidates.forEach { candidates ->
+                    candidates.getOrNull(index)?.let(::add)
+                }
+                index++
+            }
+        }.distinct()
         val profile = IranVpnProfileParser.parseAutomatic(links, fetched.size)
         IranDiscoveryResult(
             profile = profile,
@@ -122,6 +135,7 @@ internal class IranServerDiscovery {
         const val CONNECT_TIMEOUT_MS = 6_500
         const val READ_TIMEOUT_MS = 9_000
         const val MAX_SOURCE_BYTES = 1_500_000
+        const val MAX_INTERLEAVED_CANDIDATES = 160
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
