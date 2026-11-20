@@ -110,4 +110,5 @@
 
     <string name="iran_connected_auto">اتصال در حالت خودکار برقرار است؛ موتور VPN از بین %1$d سرور، گزینهٔ پاسخ‌گو را انتخاب می‌کند.</string>
     <string name="iran_connected_to_server">متصل به %1$s · %2$s:%3$d</string>
+    <string name="iran_connected_auto_pending">حالت خودکار وصل شد؛ در انتظار اعلام سرور انتخاب‌شده از طرف موتور VPN هستیم (%1$d گزینه در دسترس)…</string>
 </resources>
