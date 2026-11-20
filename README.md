@@ -1,8 +1,6 @@
 # راحت وی‌پی‌ان | Raahat VPN
 
-A Persian-first Android VPN client that discovers free public VPN Gate relays,
-ranks candidates using the directory's reported ping, throughput, uptime and
-active sessions, and connects with OpenVPN. **WireGuard is not used.**
+A Persian-first Android VPN client with two separate connection engines: OpenVPN for public VPN Gate relays, and sing-box for user-supplied VLESS + REALITY links. **WireGuard is not used.**
 
 ## Features
 
@@ -18,6 +16,27 @@ active sessions, and connects with OpenVPN. **WireGuard is not used.**
 - **In-app update:** checks the latest GitHub Release, downloads the APK,
   verifies its SHA-256 checksum, and opens the Android package installer.
 - **Persian and English UI.**
+- **Iran compatibility mode:** import a VLESS + REALITY TCP link and run it through the sing-box Android engine.
+
+## Iran compatibility mode
+
+The Iran mode uses the sing-box Android library and accepts a user-supplied
+VLESS + REALITY share link. In this version the link must use TCP and include
+a valid UUID, `security=reality`, `sni`, `pbk` and `sid`; an optional
+`fp` and `flow=xtls-rprx-vision` are supported. WebSocket and gRPC links
+are not accepted by this parser yet.
+
+Import the link in the **Iran compatibility mode** card, then tap
+**Connect with Iran mode** and approve Android's VPN permission. The profile
+is stored in the app's private local preferences. It is not uploaded by the
+app. Selective-app routing uses the same list of chosen Android packages;
+leaving the selection empty uses full-tunnel routing.
+
+This adds a protocol option that may work on networks where the current
+VPN Gate/OpenVPN path is blocked. It does **not** guarantee that Iran's
+carriers or filtering systems will allow a particular server. A working
+VLESS + REALITY server is required; this build does not supply a free server
+subscription or promise automatic discovery of public VLESS servers.
 
 ## Important: free volunteer servers
 
@@ -49,7 +68,7 @@ regular app cannot silently replace itself.
 
 ## Build from source
 
-Requirements: JDK 17, Android SDK platform 34 and Build Tools 34.0.0.
+Requirements: JDK 17, Android SDK platform 34 and Build Tools 34.0.0. Gradle also resolves the sing-box Android library from JitPack.
 
 The OpenVPN engine is included as a pinned Git submodule:
 
@@ -94,6 +113,8 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 
 - `app/`: application UI, server discovery, routing choices and updater.
 - `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
+- `IranVpnService.kt`: Android VPN service for the optional sing-box engine.
+- `IranVpnProfile.kt`: parser for user-provided VLESS + REALITY TCP links.
 - `VpnGateApi.kt`: public directory fetch and server ranking.
 - `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
 - `VpnViewModel.kt`: connection state and automatic server failover.
@@ -101,8 +122,7 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 
 ## Licensing
 
-The bundled OpenVPN engine is GPL-3.0. This application and its redistribution
-must preserve the upstream notices and comply with the GPLv3 obligations.
+The bundled OpenVPN engine and the sing-box libbox engine are GPL-3.0. This application and its redistribution must preserve the upstream notices and comply with the GPLv3 obligations.
 See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Physical device testing
