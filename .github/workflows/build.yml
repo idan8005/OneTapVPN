@@ -1,4 +1,4 @@
-name: Build, test and sign OneTapVPN
+name: Build, test and sign Raahat VPN
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: raahatvpn-android-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
       - name: Publish debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: OneTapVPN-Debug-APK
+          name: RaahatVPN-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -112,7 +112,7 @@ jobs:
         if: steps.release_signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: OneTapVPN-Release-1.2.0
+          name: RaahatVPN-Release-1.3.0
           path: |
             app/build/outputs/apk/release/app-release.apk
             app-release.apk.sha256
