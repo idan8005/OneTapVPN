@@ -604,7 +604,9 @@ class MainActivity : AppCompatActivity() {
         val current = serverProfiles.getOrNull(index) ?: return
         val updated = current.copy(
             pingMs = pingMs,
-            speedMbps = speedMbps,
+            // Keep the last real speed sample when a lightweight ping-only
+            // refresh reports -1 for throughput.
+            speedMbps = speedMbps.takeIf { it > 0.0 } ?: current.speedMbps,
             healthStatus = status
         )
         serverProfiles = serverProfiles.toMutableList().also { it[index] = updated }
@@ -622,6 +624,8 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.server_health_checking)
         server.healthStatus == "offline" ->
             getString(R.string.server_health_offline)
+        server.healthStatus == "slow" ->
+            getString(R.string.server_health_slow)
         server.pingMs > 0 && server.speedMbps > 0.0 ->
             getString(R.string.server_health_metrics, server.pingMs, server.speedMbps)
         server.pingMs > 0 ->

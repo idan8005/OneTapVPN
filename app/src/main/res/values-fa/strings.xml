@@ -136,4 +136,8 @@
     <string name="server_scan_launch_failed">شروع آزمایش پس‌زمینه سرورها ناموفق بود.</string>
     <string name="server_scan_connect_wait">لطفاً تا پایان آزمایش سرورها صبر کنید.</string>
     <string name="iran_tun_internet_test_failed">آزمایش رابط VPN اندروید ناموفق بود؛ ترافیک اینترنت از تونل عبور نمی‌کند.</string>
+
+    <string name="iran_speed_recovery">سرعت سرور فعال افت کرده؛ در حال بررسی گزینه‌های سریع‌تر…</string>
+    <string name="iran_no_faster_server">فعلاً سرور سریع‌تر و تأییدشده‌ای پیدا نشد؛ اتصال فعلی حفظ می‌شود.</string>
+    <string name="server_health_slow">سرعت افت کرده؛ در حال بررسی جایگزین</string>
 </resources>

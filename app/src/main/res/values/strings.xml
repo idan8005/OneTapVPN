@@ -136,4 +136,8 @@
     <string name="server_scan_launch_failed">Could not start the background server test.</string>
     <string name="server_scan_connect_wait">Please wait until the server test finishes.</string>
     <string name="iran_tun_internet_test_failed">The Android VPN interface test failed. Internet traffic is not passing through the tunnel.</string>
+
+    <string name="iran_speed_recovery">Active server speed has dropped. Checking faster alternatives…</string>
+    <string name="iran_no_faster_server">No verified faster server is available right now. Keeping the current connection.</string>
+    <string name="server_health_slow">Speed has dropped; checking alternatives</string>
 </resources>

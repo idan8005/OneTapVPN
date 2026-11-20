@@ -28,6 +28,17 @@ class ServerHealthScorerTest {
     }
 
     @Test
+    fun dampensExtremeSpeedOutliersWhenLatencyIsMuchWorse() {
+        val selected = ServerHealthScorer.selectBest(
+            listOf(
+                ServerQualitySample("speed-outlier", 150, 1000.0),
+                ServerQualitySample("balanced", 50, 60.0, jitterMs = 5)
+            )
+        )
+        assertEquals("balanced", selected)
+    }
+
+    @Test
     fun fallsBackToLowestLatencyWhenSpeedSamplesAreUnavailable() {
         val selected = ServerHealthScorer.selectBest(
             listOf(

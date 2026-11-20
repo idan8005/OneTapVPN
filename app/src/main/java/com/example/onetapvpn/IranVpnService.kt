@@ -121,7 +121,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     ?: error("The local server-health controller is not configured.")
                 awaitControllerReady(secret)
                 updateForegroundNotification(getString(R.string.iran_server_health_checking))
-                val healthResults = checkAllServers(secret, runtimeConfig, runSpeedTest = !scanOnly)
+                val healthResults = checkAllServers(secret, runtimeConfig, runSpeedTest = true)
                 val available = healthResults.filter { it.pingMs > 0 }
                 if (scanOnly) {
                     publishScanComplete(available.size, healthResults.size)
@@ -414,16 +414,19 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
         // Only sample real throughput for the three strongest responders. This
         // caps startup traffic and prevents a long serial test of every free node.
-        val speedCandidates = measured
-            .filter { it.pingMs > 0 }
-            .sortedWith(
-                compareBy<ServerHealthResult> { it.pingMs }
-                    .thenByDescending { it.successRate }
-                    .thenBy { it.jitterMs }
-            )
-            .take(MAX_SPEED_TEST_CANDIDATES)
-            .map { it.tag }
-            .toSet()
+        // Choose speed-test targets using the same quality model that ranks
+        // candidates for connection, rather than ping alone.
+        val speedCandidates = ServerHealthScorer.rank(
+            measured.map { result ->
+                ServerQualitySample(
+                    tag = result.tag,
+                    pingMs = result.pingMs,
+                    speedMbps = result.speedMbps,
+                    successRate = result.successRate,
+                    jitterMs = result.jitterMs
+                )
+            }
+        ).take(MAX_SPEED_TEST_CANDIDATES).toSet()
 
         for (index in measured.indices) {
             val current = measured[index]
@@ -535,6 +538,21 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun measureDownloadMbps(): Double {
+        // Average two independent short downloads. A single burst or delayed
+        // first byte should not dominate the server's quality score.
+        val samples = (1..SPEED_TEST_SAMPLE_COUNT).mapNotNull {
+            runCatching { measureDownloadSampleMbps() }
+                .onFailure { Log.d(TAG, "Speed-test sample failed", it) }
+                .getOrNull()
+                ?.takeIf { it > 0.0 }
+        }
+        if (samples.isEmpty()) {
+            throw java.io.IOException("No valid speed-test sample was received.")
+        }
+        return samples.average()
+    }
+
+    private fun measureDownloadSampleMbps(): Double {
         val proxy = Proxy(
             Proxy.Type.HTTP,
             InetSocketAddress(LOOPBACK_SPEED_PROXY_HOST, LOOPBACK_SPEED_PROXY_PORT)
@@ -573,7 +591,6 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             connection.disconnect()
         }
     }
-
     private fun selectBestServer(results: List<ServerHealthResult>): ServerHealthResult? {
         val selectedTag = ServerHealthScorer.selectBest(
             results.map { result ->
@@ -685,23 +702,80 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             var candidates = initialResults
             var activeTag = initialTag
             var consecutiveFailures = 0
+            var monitorTicks = 0
+            var slowSpeedSamples = 0
+            var baselineSpeed = candidates.firstOrNull { it.tag == activeTag }
+                ?.speedMbps?.takeIf { it > 0.0 }
+            var latestSpeed = baselineSpeed ?: -1.0
 
             while (isActive) {
                 kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
+                monitorTicks++
 
                 val ping = runCatching { testOutboundLatency(secret, activeTag) }
                     .getOrDefault(-1)
-                if (ping > 0) {
-                    consecutiveFailures = 0
-                    val current = candidates.firstOrNull { it.tag == activeTag }
-                    val speed = current?.speedMbps ?: -1.0
-                    publishServerHealth(activeTag, ping, speed, "online")
-                    continue
+                var activeHealthy = ping > 0
+
+                // Periodically verify real traffic, not just the controller's
+                // ping response. This catches a live node with a dead data path.
+                if (activeHealthy && monitorTicks % ACTIVE_FULL_VERIFY_INTERVAL_TICKS == 0) {
+                    activeHealthy = verifyInternetThroughLocalProxy() &&
+                        verifyInternetThroughTun()
+                    if (!activeHealthy) {
+                        Log.w(TAG, "Active node failed its periodic end-to-end Internet check.")
+                    }
                 }
 
-                publishServerHealth(activeTag, -1, -1.0, "offline")
-                consecutiveFailures++
-                if (consecutiveFailures < ACTIVE_SERVER_FAILURES_BEFORE_SWITCH) continue
+                var qualityRecovery = false
+                if (activeHealthy) {
+                    consecutiveFailures = 0
+
+                    if (monitorTicks % ACTIVE_SPEED_TEST_INTERVAL_TICKS == 0) {
+                        val speed = runCatching { measureDownloadMbps() }.getOrDefault(-1.0)
+                        if (speed > 0.0) {
+                            latestSpeed = speed
+                            val referenceSpeed = baselineSpeed ?: speed.also { baselineSpeed = it }
+                            if (speed < referenceSpeed * ACTIVE_SPEED_DEGRADATION_RATIO) {
+                                slowSpeedSamples++
+                            } else {
+                                slowSpeedSamples = 0
+                            }
+
+                            candidates = candidates.map { candidate ->
+                                if (candidate.tag == activeTag) {
+                                    candidate.copy(pingMs = ping, speedMbps = speed)
+                                } else {
+                                    candidate
+                                }
+                            }
+                            publishServerHealth(
+                                activeTag,
+                                ping,
+                                speed,
+                                if (slowSpeedSamples >= ACTIVE_SLOW_SPEED_SAMPLES_BEFORE_SWITCH) {
+                                    "slow"
+                                } else {
+                                    "online"
+                                }
+                            )
+
+                            if (slowSpeedSamples >= ACTIVE_SLOW_SPEED_SAMPLES_BEFORE_SWITCH) {
+                                qualityRecovery = true
+                                updateForegroundNotification(getString(R.string.iran_speed_recovery))
+                            }
+                        } else {
+                            publishServerHealth(activeTag, ping, latestSpeed, "online")
+                        }
+                    } else {
+                        publishServerHealth(activeTag, ping, latestSpeed, "online")
+                    }
+
+                    if (!qualityRecovery) continue
+                } else {
+                    publishServerHealth(activeTag, -1, -1.0, "offline")
+                    consecutiveFailures++
+                    if (consecutiveFailures < ACTIVE_SERVER_FAILURES_BEFORE_SWITCH) continue
+                }
 
                 val config = currentConfig ?: continue
                 val refreshed = runCatching {
@@ -718,21 +792,50 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
                 var remaining = merged.filter { it.tag != activeTag }
                 var replacement: ServerHealthResult? = null
-                while (remaining.isNotEmpty() && replacement == null) {
+                var attempts = 0
+                val attemptLimit = if (qualityRecovery) {
+                    MAX_SPEED_RECOVERY_CANDIDATES
+                } else {
+                    Int.MAX_VALUE
+                }
+
+                while (remaining.isNotEmpty() && replacement == null && attempts < attemptLimit) {
                     val next = selectBestServer(remaining) ?: break
                     remaining = remaining.filterNot { it.tag == next.tag }
-                    val switched = runCatching {
+                    attempts++
+
+                    val candidateHealthy = runCatching {
                         selectOutbound(secret, next.tag)
                         kotlinx.coroutines.delay(350)
                         verifyInternetThroughLocalProxy() && verifyInternetThroughTun()
                     }.getOrDefault(false)
-                    if (switched) replacement = next
+                    if (!candidateHealthy) continue
+
+                    val candidateSpeed = if (qualityRecovery) {
+                        runCatching { measureDownloadMbps() }.getOrDefault(-1.0)
+                    } else {
+                        next.speedMbps
+                    }
+                    val isMeaningfullyFaster = !qualityRecovery ||
+                        (latestSpeed > 0.0 && candidateSpeed >= latestSpeed * ACTIVE_SPEED_SWITCH_MIN_GAIN)
+
+                    if (isMeaningfullyFaster) {
+                        replacement = next.copy(
+                            speedMbps = candidateSpeed.takeIf { it > 0.0 } ?: next.speedMbps
+                        )
+                    }
                 }
 
                 if (replacement != null) {
                     val chosen = replacement
                     activeTag = chosen.tag
-                    candidates = merged
+                    candidates = merged.map { candidate ->
+                        if (candidate.tag == chosen.tag) chosen else candidate
+                    }
+                    baselineSpeed = chosen.speedMbps.takeIf { it > 0.0 }
+                        ?: latestSpeed.takeIf { qualityRecovery }
+                    latestSpeed = baselineSpeed ?: -1.0
+                    slowSpeedSamples = 0
                     consecutiveFailures = 0
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
@@ -744,20 +847,25 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                         ),
                         activeTag
                     )
+                    publishServerHealth(activeTag, chosen.pingMs, chosen.speedMbps, "online")
                     updateForegroundNotification(
                         getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
                     )
                 } else {
-                    // Do not leave the selector pointing at an unverified trial node.
+                    // Never leave the selector on an unverified trial node.
                     runCatching { selectOutbound(secret, activeTag) }
                     candidates = merged.ifEmpty { candidates }
                     consecutiveFailures = 0
-                    updateForegroundNotification(getString(R.string.iran_server_recovery))
+                    slowSpeedSamples = 0
+                    updateForegroundNotification(
+                        getString(
+                            if (qualityRecovery) R.string.iran_no_faster_server else R.string.iran_server_recovery
+                        )
+                    )
                 }
             }
         }
     }
-
     private fun notification(message: String) =
         NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
@@ -1174,11 +1282,18 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
         const val MAX_PARALLEL_PING_TESTS = 6
         const val MAX_PARALLEL_STABILITY_PROBES = 2
-        const val MAX_STABILITY_PROBE_CANDIDATES = 4
+        const val MAX_STABILITY_PROBE_CANDIDATES = 6
         const val STABILITY_REPEAT_PROBES = 2
-        const val MAX_SPEED_TEST_CANDIDATES = 3
-        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 10_000L
+        const val MAX_SPEED_TEST_CANDIDATES = 4
+        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 8_000L
         const val ACTIVE_SERVER_FAILURES_BEFORE_SWITCH = 2
+        const val ACTIVE_FULL_VERIFY_INTERVAL_TICKS = 4
+        const val ACTIVE_SPEED_TEST_INTERVAL_TICKS = 8
+        const val ACTIVE_SLOW_SPEED_SAMPLES_BEFORE_SWITCH = 2
+        const val ACTIVE_SPEED_DEGRADATION_RATIO = 0.45
+        const val ACTIVE_SPEED_SWITCH_MIN_GAIN = 1.20
+        const val MAX_SPEED_RECOVERY_CANDIDATES = 3
+        const val SPEED_TEST_SAMPLE_COUNT = 2
         const val MIN_SAFE_MTU = 1280
         const val MAX_SAFE_MTU = 1500
         const val DEFAULT_TUN_MTU = 1400

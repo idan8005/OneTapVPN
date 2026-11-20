@@ -1,5 +1,7 @@
 package com.example.onetapvpn
 
+import kotlin.math.ln
+
 internal data class ServerQualitySample(
     val tag: String,
     val pingMs: Int,
@@ -15,11 +17,17 @@ internal object ServerHealthScorer {
 
         val fastestSpeed = online.filter { it.speedMbps > 0.0 }
             .maxOfOrNull { it.speedMbps } ?: 0.0
+        val logSpeedCeiling = if (fastestSpeed > 0.0) ln(1.0 + fastestSpeed) else 0.0
         val lowestPing = online.minOf { it.pingMs }.coerceAtLeast(1)
 
         return online.sortedByDescending { candidate ->
-            val speedScore = if (fastestSpeed > 0.0 && candidate.speedMbps > 0.0) {
-                (candidate.speedMbps / fastestSpeed).coerceIn(0.0, 1.0)
+            // Logarithmic normalization stops one extreme speed reading from
+            // overwhelming latency and stability for every other candidate.
+            val speedScore = if (
+                logSpeedCeiling > 0.0 && candidate.speedMbps > 0.0
+            ) {
+                (ln(1.0 + candidate.speedMbps.coerceAtMost(fastestSpeed)) / logSpeedCeiling)
+                    .coerceIn(0.0, 1.0)
             } else {
                 0.0
             }
@@ -30,8 +38,8 @@ internal object ServerHealthScorer {
                 (1.0 / (1.0 + candidate.jitterMs.coerceAtLeast(0) / 80.0))
                     .coerceIn(0.0, 1.0)
 
-            speedScore * 0.50 + latencyScore * 0.30 +
-                reliabilityScore * 0.15 + jitterScore * 0.05
+            speedScore * 0.45 + latencyScore * 0.30 +
+                reliabilityScore * 0.20 + jitterScore * 0.05
         }.map { it.tag }
     }
 
