@@ -244,12 +244,14 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
 
         val ipv4 = options.inet4Address
+        val hasIpv4Address = ipv4.hasNext()
         while (ipv4.hasNext()) {
             val address = ipv4.next()
             builder.addAddress(address.address(), address.prefix())
         }
 
         val ipv6 = options.inet6Address
+        val hasIpv6Address = ipv6.hasNext()
         while (ipv6.hasNext()) {
             val address = ipv6.next()
             builder.addAddress(address.address(), address.prefix())
@@ -263,14 +265,14 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 val ipv4Routes = options.inet4RouteAddress
                 if (ipv4Routes.hasNext()) {
                     while (ipv4Routes.hasNext()) builder.addRoute(ipv4Routes.next().toIpPrefix())
-                } else if (options.inet4Address.hasNext()) {
+                } else if (hasIpv4Address) {
                     builder.addRoute("0.0.0.0", 0)
                 }
 
                 val ipv6Routes = options.inet6RouteAddress
                 if (ipv6Routes.hasNext()) {
                     while (ipv6Routes.hasNext()) builder.addRoute(ipv6Routes.next().toIpPrefix())
-                } else if (options.inet6Address.hasNext()) {
+                } else if (hasIpv6Address) {
                     builder.addRoute("::", 0)
                 }
 
@@ -280,14 +282,23 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 while (excluded6.hasNext()) builder.excludeRoute(excluded6.next().toIpPrefix())
             } else {
                 val ipv4Routes = options.inet4RouteRange
-                while (ipv4Routes.hasNext()) {
-                    val range = ipv4Routes.next()
-                    builder.addRoute(range.address(), range.prefix())
+                if (ipv4Routes.hasNext()) {
+                    while (ipv4Routes.hasNext()) {
+                        val range = ipv4Routes.next()
+                        builder.addRoute(range.address(), range.prefix())
+                    }
+                } else if (hasIpv4Address) {
+                    builder.addRoute("0.0.0.0", 0)
                 }
+
                 val ipv6Routes = options.inet6RouteRange
-                while (ipv6Routes.hasNext()) {
-                    val range = ipv6Routes.next()
-                    builder.addRoute(range.address(), range.prefix())
+                if (ipv6Routes.hasNext()) {
+                    while (ipv6Routes.hasNext()) {
+                        val range = ipv6Routes.next()
+                        builder.addRoute(range.address(), range.prefix())
+                    }
+                } else if (hasIpv6Address) {
+                    builder.addRoute("::", 0)
                 }
             }
 
