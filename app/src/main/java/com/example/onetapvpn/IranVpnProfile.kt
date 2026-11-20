@@ -215,6 +215,19 @@ internal object IranVpnProfileParser {
                     .put("final", finalOutbound)
             )
 
+        if (automaticSelection) {
+            val controllerSecret = UUID.randomUUID().toString().replace("-", "")
+            config.put(
+                "experimental",
+                JSONObject().put(
+                    "clash_api",
+                    JSONObject()
+                        .put("external_controller", "127.0.0.1:19090")
+                        .put("secret", controllerSecret)
+                )
+            )
+        }
+
         val first = nodes.first()
         return IranVpnProfile(
             name = if (automaticSelection) "Auto · ${nodes.size} candidates" else first.name,
