@@ -112,4 +112,17 @@
     <string name="iran_connected_to_server">متصل به %1$s · %2$s:%3$d</string>
     <string name="iran_connected_auto_pending">حالت خودکار وصل شد؛ در انتظار اعلام سرور انتخاب‌شده از طرف موتور VPN هستیم (%1$d گزینه در دسترس)…</string>
     <string name="iran_active_server_updated">سرور فعال شناسایی شد.</string>
+
+    <string name="iran_server_health_checking">در حال آزمایش تک‌تک سرورها: پینگ واقعی و نمونهٔ سرعت دانلود…</string>
+    <string name="iran_no_server_passed_test">هیچ‌کدام از سرورها آزمایش اینترنت را با موفقیت نگذرانده‌اند. فهرست را تازه‌سازی و دوباره امتحان کن.</string>
+    <string name="iran_manual_server_unavailable">سرور انتخاب‌شدهٔ دستی آزمایش اتصال را نگذرانده است. سرور دیگری انتخاب کن.</string>
+    <string name="iran_internet_test_failed">سرور پاسخ داد، اما آزمایش اینترنت از داخل VPN ناموفق بود؛ این سرور متصل اعلام نشد.</string>
+    <string name="iran_connected_verified">دسترسی اینترنت از طریق سرور انتخاب‌شده بررسی و تأیید شد.</string>
+    <string name="server_health_checking">در حال آزمایش…</string>
+    <string name="server_health_offline">بدون پاسخ / قطع</string>
+    <string name="server_health_metrics">پینگ %1$d ms · سرعت %2$.1f Mbps</string>
+    <string name="server_health_ping_only">پینگ %1$d ms · سرعت نامشخص</string>
+    <string name="server_health_not_tested">هنوز آزمایش نشده</string>
+    <string name="server_picker_item_with_health">%1$s — %2$s:%3$d · %4$s</string>
+    <string name="server_health_count">%1$d از %2$d سرور به آزمایش پینگ پاسخ دادند</string>
 </resources>
