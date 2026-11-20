@@ -28,10 +28,11 @@ filters malformed or unsupported entries, removes duplicates and keeps up to
 
 - `mehrtat/vless-collector` (plain VLESS feed)
 - `0xRadikal/Free-v2ray-Configs` (verified public configurations)
+- `morpheusadam/v2ray-config` (best base64 bundle)
 - `Au1rxx/free-vpn-subscriptions` (base64 subscription feed)
 
-The app builds a sing-box `urltest` group. Health checks are performed by the
-sing-box engine through the phone's current network, not by trusting latency
+The app builds a sing-box `urltest` group of up to 30 candidates. Health checks are performed by the
+sing-box engine through the phone's current network every 30 seconds, not by trusting latency
 values reported by a remote list. The selected node is re-tested periodically;
 when the network changes or a candidate stops responding, sing-box can select
 another candidate. The candidate list is refreshed after 20 minutes, or
@@ -127,6 +128,7 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 - `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
 - `IranVpnService.kt`: Android VPN service for the optional sing-box engine.
 - `IranVpnProfile.kt`: strict VLESS + REALITY parser and sing-box URL-test builder.
+- `IranServerDiscovery.kt`: four public feed sources with CDN fallback and bounded downloads.
 - `IranServerDiscovery.kt`: multi-source public feed discovery with CDN fallback.
 - `VpnGateApi.kt`: public directory fetch and server ranking.
 - `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
