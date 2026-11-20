@@ -1,4 +1,4 @@
-name: Build and verify OneTapVPN APK
+name: Build, test and sign OneTapVPN
 
 on:
   push:
@@ -14,9 +14,9 @@ concurrency:
 
 jobs:
   build:
-    name: Verify and build Android APK
+    name: Test and build Android APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -48,18 +48,84 @@ jobs:
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
+      - name: Run UI smoke test on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
+
       - name: Build debug APK
         run: gradle --no-daemon clean :app:assembleDebug
 
-      - name: Verify APK
+      - name: Verify debug APK
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
           test "$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)" -gt 1000000
 
-      - name: Publish installable APK
+      - name: Publish debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: OneTapVPN-APK
+          name: OneTapVPN-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare stable release signing key
+        id: release_signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_KEYSTORE_BASE64}" || -z "${ANDROID_KEYSTORE_PASSWORD}" || -z "${ANDROID_KEY_ALIAS}" || -z "${ANDROID_KEY_PASSWORD}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Release signing secrets are not configured. Debug build and tests completed; signed Release APK was skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/onetapvpn-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build signed Release APK
+        if: steps.release_signing.outputs.configured == 'true'
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:verifyReleaseSigningConfigured :app:assembleRelease
+
+      - name: Verify Release signature and checksum
+        if: steps.release_signing.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$APK" | tee release-signature.txt
+          sha256sum "$APK" > app-release.apk.sha256
+          echo "Signed Release APK verified successfully." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish signed Release APK
+        if: steps.release_signing.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneTapVPN-Release-1.2.0
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app-release.apk.sha256
+            release-signature.txt
+          if-no-files-found: error
+          retention-days: 30
