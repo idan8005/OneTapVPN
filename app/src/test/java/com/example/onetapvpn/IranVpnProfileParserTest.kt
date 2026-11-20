@@ -187,10 +187,12 @@ class IranVpnProfileParserTest {
     }
 
     @Test
-    fun rejectsUnsupportedWebSocketTransport() {
-        val invalid = validLink.replace("type=tcp", "type=ws")
-        assertThrows(IllegalArgumentException::class.java) {
-            IranVpnProfileParser.parse(invalid)
-        }
+    fun acceptsVlessRealityWebSocketTransport() {
+        val link = validLink.replace("type=tcp", "type=ws")
+        val outbound = JSONObject(IranVpnProfileParser.parse(link).configJson)
+            .getJSONArray("outbounds").getJSONObject(0)
+        val transport = outbound.getJSONObject("transport")
+        assertEquals("ws", transport.getString("type"))
+        assertEquals("/", transport.getString("path"))
     }
 }
