@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     private var connectionMessage = ""
     private var discoveryJob: Job? = null
     private var serverRefreshJob: Job? = null
+    private var serverScanActive = false
     private var updateJob: Job? = null
     private var pendingInstallFile: File? = null
     private var pendingProfile: IranVpnProfile? = null
@@ -99,6 +100,31 @@ class MainActivity : AppCompatActivity() {
                     intent.getDoubleExtra(IranVpnContract.EXTRA_SPEED_MBPS, -1.0),
                     intent.getStringExtra(IranVpnContract.EXTRA_HEALTH_STATUS).orEmpty()
                 )
+                return
+            }
+            if (state == IranVpnContract.STATE_SCAN_COMPLETE) {
+                serverScanActive = false
+                serverProfiles = profileStore.readServers()
+                profileStore.markServerHealthChecked()
+                reconcileSelectionAfterHealthCheck()
+                val online = availableServerProfiles.size
+                serverNotice = getString(
+                    R.string.server_scan_complete,
+                    online,
+                    serverProfiles.size
+                )
+                renderServerSelection()
+                render()
+                return
+            }
+            if (state == IranVpnContract.STATE_SCAN_ERROR) {
+                serverScanActive = false
+                serverNotice = getString(
+                    R.string.server_scan_failed,
+                    message.ifBlank { getString(R.string.status_error) }
+                )
+                renderServerSelection()
+                render()
                 return
             }
 
@@ -140,7 +166,11 @@ class MainActivity : AppCompatActivity() {
         registerStatusReceiver()
         updateCachedProfileSummary()
         render()
-        if (serverProfiles.isEmpty()) refreshServers()
+        if (serverProfiles.isEmpty()) {
+            refreshServers()
+        } else if (profileStore.isServerHealthStale()) {
+            scanCachedServers()
+        }
     }
 
     override fun onResume() {
@@ -338,6 +368,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onConnectionButtonPressed() {
+        if (serverScanActive) {
+            Toast.makeText(this, R.string.server_scan_connect_wait, Toast.LENGTH_LONG).show()
+            return
+        }
         when (uiState) {
             UiState.DISCOVERING, UiState.CONNECTING, UiState.CONNECTED -> disconnect()
             UiState.IDLE, UiState.ERROR -> beginConnection()
@@ -540,8 +574,8 @@ class MainActivity : AppCompatActivity() {
         )
 
         val controlsAvailable = uiState == UiState.IDLE || uiState == UiState.ERROR
-        serverSelectButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true
-        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true
+        serverSelectButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true && !serverScanActive
+        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true && !serverScanActive
         routeText.text = when (routing.mode) {
             RoutingMode.FULL_TUNNEL -> getString(R.string.full_tunnel_description)
             RoutingMode.SELECTED_APPS -> getString(R.string.selected_apps_description) +
@@ -572,6 +606,10 @@ class MainActivity : AppCompatActivity() {
         )
         serverProfiles = serverProfiles.toMutableList().also { it[index] = updated }
         profileStore.saveServerHealth(updated)
+        if (status == "offline" && selectedServerKey == updated.selectionKey) {
+            selectedServerKey = IranVpnProfileStore.AUTO_SELECTION_KEY
+            profileStore.saveSelection(selectedServerKey)
+        }
         renderServerSelection()
     }
 
@@ -597,6 +635,9 @@ class MainActivity : AppCompatActivity() {
             serverHealthLabel(server)
         )
 
+    private val availableServerProfiles: List<IranVpnProfile>
+        get() = serverProfiles.filter { it.pingMs > 0 && it.healthStatus != "offline" }
+
     private fun renderServerSelection(message: String? = null) {
         if (!::serverSummaryText.isInitialized) return
         val autoProfile = profileStore.read()
@@ -616,9 +657,9 @@ class MainActivity : AppCompatActivity() {
         val listText = if (serverProfiles.isEmpty()) {
             getString(R.string.server_list_empty)
         } else {
-            val checked = serverProfiles.count { it.pingMs > 0 }
-            getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0) +
-                "\n" + getString(R.string.server_health_count, checked, serverProfiles.size)
+            val working = availableServerProfiles.size
+            getString(R.string.server_list_count, working, autoProfile?.sourceCount ?: 0) +
+                "\n" + getString(R.string.server_health_count, working, serverProfiles.size)
         }
         serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\n")
     }
@@ -634,13 +675,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun openServerPicker() {
         if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
-            uiState == UiState.DISCOVERING || serverRefreshJob?.isActive == true
+            uiState == UiState.DISCOVERING || serverRefreshJob?.isActive == true || serverScanActive
         ) {
             Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
             return
         }
 
-        val orderedServers = serverProfiles.sortedWith(
+        val orderedServers = availableServerProfiles.sortedWith(
             compareByDescending<IranVpnProfile> { it.pingMs > 0 }
                 .thenByDescending { it.speedMbps > 0.0 }
                 .thenByDescending { it.speedMbps }
@@ -675,9 +716,41 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun scanCachedServers() {
+        val profile = profileStore.read()
+        if (profile == null || serverProfiles.isEmpty()) {
+            refreshServers()
+            return
+        }
+        startServerScan(profile)
+    }
+
+    private fun startServerScan(profile: IranVpnProfile) {
+        if (serverScanActive) return
+        serverScanActive = true
+        serverNotice = getString(R.string.server_scan_starting)
+        renderServerSelection()
+        render()
+        if (!vpnManager.scan(profile)) {
+            serverScanActive = false
+            serverNotice = getString(R.string.server_scan_launch_failed)
+            renderServerSelection()
+            render()
+        }
+    }
+
+    private fun reconcileSelectionAfterHealthCheck() {
+        if (selectedServerKey != IranVpnProfileStore.AUTO_SELECTION_KEY &&
+            availableServerProfiles.none { it.selectionKey == selectedServerKey }
+        ) {
+            selectedServerKey = IranVpnProfileStore.AUTO_SELECTION_KEY
+            profileStore.saveSelection(selectedServerKey)
+        }
+    }
+
     private fun refreshServers() {
         if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
-            uiState == UiState.DISCOVERING
+            uiState == UiState.DISCOVERING || serverScanActive
         ) {
             Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
             return
@@ -693,13 +766,9 @@ class MainActivity : AppCompatActivity() {
                 profileStore.saveDiscovery(result.profile, result.servers)
                 serverProfiles = result.servers
                 reconcileSelectionAfterRefresh()
-                serverNotice = getString(R.string.server_refresh_success, result.servers.size, result.sourceCount)
+                serverNotice = getString(R.string.server_scan_starting)
                 renderServerSelection()
-                Toast.makeText(
-                    this@MainActivity,
-                    getString(R.string.server_refresh_success_toast, result.servers.size),
-                    Toast.LENGTH_LONG
-                ).show()
+                startServerScan(result.profile)
             } catch (error: Exception) {
                 serverNotice = getString(
                     R.string.server_refresh_failed,
