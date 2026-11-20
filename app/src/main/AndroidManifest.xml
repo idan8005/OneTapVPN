@@ -3,11 +3,19 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
+        android:extractNativeLibs="true"
+        tools:replace="android:extractNativeLibs"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="false"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@drawable/ic_raahat_vpn"
         android:label="@string/app_name"
         android:roundIcon="@drawable/ic_raahat_vpn"
@@ -24,15 +32,29 @@
             </intent-filter>
         </activity>
 
-        <!-- The WireGuard AAR contributes this service and its VPN intent filter. -->
         <service
-            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:name="de.blinkt.openvpn.core.OpenVPNService"
             android:exported="false"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            tools:node="merge">
-            <meta-data
-                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
-                android:value="false" />
+            android:foregroundServiceType="connectedDevice"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
         </service>
+
+        <service
+            android:name="de.blinkt.openvpn.core.keepVPNAlive"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
