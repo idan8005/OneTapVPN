@@ -142,4 +142,25 @@
     <string name="server_health_slow">سرعت افت کرده؛ در حال بررسی جایگزین</string>
 
     <string name="iran_tun_route_failure">سرور از مسیر پروکسی اینترنت داشت، اما اندروید نتوانست ترافیک را از تونل VPN عبور دهد. مشکل به مسیر تونل یا DNS اندروید مربوط است، نه کمبود سرور.</string>
+
+    <string name="hybrid_account_button">حساب و اشتراک ویژه</string>
+    <string name="hybrid_account_title">حساب راحت وی‌پی‌ان</string>
+    <string name="hybrid_account_help">کد دسترسی حساب خود را وارد کنید. این کد با Android Keystore روی همین دستگاه رمزنگاری می‌شود. آن را در اختیار دیگران قرار ندهید.</string>
+    <string name="hybrid_token_hint">کد دسترسی حساب</string>
+    <string name="hybrid_sync_button">بررسی و همگام‌سازی</string>
+    <string name="hybrid_clear_token">حذف کد دسترسی</string>
+    <string name="hybrid_token_required">ابتدا کد دسترسی حساب را وارد کنید.</string>
+    <string name="hybrid_token_cleared">کد ذخیره‌شده و فهرست سرورهای ویژه حذف شد.</string>
+    <string name="hybrid_syncing">در حال بررسی حساب و دریافت سرورهای ویژه…</string>
+    <string name="hybrid_sync_failed">همگام‌سازی حساب ویژه ناموفق بود: %1$s</string>
+    <string name="hybrid_free_account">این حساب از طرح رایگان استفاده می‌کند. جست‌وجوی سرورهای عمومی همچنان فعال است.</string>
+    <string name="hybrid_premium_no_servers">دسترسی ویژه تأیید شد، اما هنوز سرور اختصاصی سازگار در فهرست وجود ندارد.</string>
+    <string name="hybrid_premium_synced">دسترسی ویژه تأیید شد؛ %1$d سرور سازگار دریافت شد.</string>
+    <string name="hybrid_premium_active">فهرست سرورهای ویژه انتخاب شد.</string>
+    <string name="hybrid_free_active">فهرست سرورهای عمومی رایگان انتخاب شد.</string>
+    <string name="hybrid_tier_free">حالت فعلی: سرورهای عمومی رایگان</string>
+    <string name="hybrid_tier_premium">حالت فعلی: سرورهای ویژه مدیریت‌شده</string>
+    <string name="hybrid_switch_free">بازگشت به رایگان</string>
+    <string name="hybrid_switch_premium">استفاده از سرورهای ویژه</string>
+    <string name="hybrid_premium_unavailable">دسترسی ویژه تأیید نشد یا سرور سازگار ویژه‌ای دریافت نشد.</string>
 </resources>

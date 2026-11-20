@@ -142,4 +142,25 @@
     <string name="server_health_slow">Speed has dropped; checking alternatives</string>
 
     <string name="iran_tun_route_failure">A server passed the proxy Internet test, but Android could not route Internet traffic through the VPN tunnel. This points to an Android tunnel or DNS routing problem, not a lack of servers.</string>
+
+    <string name="hybrid_account_button">Account / Premium</string>
+    <string name="hybrid_account_title">Raahat VPN account</string>
+    <string name="hybrid_account_help">Enter the access token supplied for your Raahat account. It is encrypted with Android Keystore on this device. Do not share this token.</string>
+    <string name="hybrid_token_hint">Access token</string>
+    <string name="hybrid_sync_button">Verify and sync</string>
+    <string name="hybrid_clear_token">Remove token</string>
+    <string name="hybrid_token_required">Enter your account access token first.</string>
+    <string name="hybrid_token_cleared">The saved token and Premium server cache were removed.</string>
+    <string name="hybrid_syncing">Verifying account and loading Premium servers…</string>
+    <string name="hybrid_sync_failed">Premium account sync failed: %1$s</string>
+    <string name="hybrid_free_account">This account has the free plan. Public server discovery remains available.</string>
+    <string name="hybrid_premium_no_servers">Premium access is active, but no compatible managed servers are available yet.</string>
+    <string name="hybrid_premium_synced">Verified Premium access. %1$d compatible server(s) received.</string>
+    <string name="hybrid_premium_active">Premium server catalogue selected.</string>
+    <string name="hybrid_free_active">Free public server catalogue selected.</string>
+    <string name="hybrid_tier_free">Current mode: Free public servers</string>
+    <string name="hybrid_tier_premium">Current mode: Managed Premium servers</string>
+    <string name="hybrid_switch_free">Switch to Free</string>
+    <string name="hybrid_switch_premium">Switch to Premium</string>
+    <string name="hybrid_premium_unavailable">Premium access could not be verified or no compatible Premium servers were returned.</string>
 </resources>
