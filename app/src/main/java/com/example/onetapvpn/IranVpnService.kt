@@ -35,10 +35,10 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
-import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
+import java.util.Collections
 import java.net.NetworkInterface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -381,7 +381,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     override fun getInterfaces(): NetworkInterfaceIterator {
         val interfaces = mutableListOf<LibboxNetworkInterface>()
         val networkInterfaces = runCatching {
-            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            val enumeration = NetworkInterface.getNetworkInterfaces()
+            if (enumeration == null) emptyList() else Collections.list(enumeration)
         }.getOrDefault(emptyList())
 
         for (network in connectivity.allNetworks) {
