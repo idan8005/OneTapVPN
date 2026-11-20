@@ -163,6 +163,22 @@ internal class IranServerDiscovery {
             ),
             Feed(
                 listOf(
+                    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs_base64.txt",
+                    "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs_base64.txt",
+                    "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs_base64.txt",
+                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs_base64.txt"
+                )
+            ),
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/mehrtat/vless-collector/main/sub.txt",
+                    "https://cdn.jsdelivr.net/gh/mehrtat/vless-collector@main/sub.txt",
+                    "https://fastly.jsdelivr.net/gh/mehrtat/vless-collector@main/sub.txt",
+                    "https://gcore.jsdelivr.net/gh/mehrtat/vless-collector@main/sub.txt"
+                )
+            ),
+            Feed(
+                listOf(
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
                     "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
                     "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/verified/configs.txt",
