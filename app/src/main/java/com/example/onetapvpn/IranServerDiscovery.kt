@@ -149,7 +149,11 @@ internal class IranServerDiscovery {
                     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
                     "https://cdn.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
                     "https://fastly.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
-                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt",
+                    "https://gcore.jsdelivr.net/gh/0xRadikal/Free-v2ray-Configs@main/top100.txt"
+                )
+            ),
+            Feed(
+                listOf(
                     "https://raw.githubusercontent.com/mehrtat/vless-collector/main/vless.txt",
                     "https://cdn.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
                     "https://fastly.jsdelivr.net/gh/mehrtat/vless-collector@main/vless.txt",
@@ -168,13 +172,17 @@ internal class IranServerDiscovery {
             ),
             Feed(
                 listOf(
-                    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best-base64.txt",
-                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
-                    "https://fastly.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
-                    "https://gcore.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
                     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
                     "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/iran.txt",
                     "https://raw.githack.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt"
+                )
+            ),
+            Feed(
+                listOf(
+                    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best-base64.txt",
+                    "https://cdn.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
+                    "https://fastly.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt",
+                    "https://gcore.jsdelivr.net/gh/morpheusadam/v2ray-config@main/subs/bundles/best-base64.txt"
                 )
             ),
             Feed(
