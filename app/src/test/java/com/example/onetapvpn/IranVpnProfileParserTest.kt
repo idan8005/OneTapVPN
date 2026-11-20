@@ -66,6 +66,15 @@ class IranVpnProfileParserTest {
             .first { it.optString("tag") == "proxy" }
         assertEquals("selector", selector.getString("type"))
         assertEquals("auto", selector.getJSONArray("outbounds").getString(0))
+        val inbounds = config.getJSONArray("inbounds")
+        assertEquals("tun", inbounds.getJSONObject(0).getString("type"))
+        assertEquals("mixed", inbounds.getJSONObject(1).getString("type"))
+        val dnsRoute = config.getJSONObject("route").getJSONArray("rules").getJSONObject(0)
+        assertEquals("dns-out", dnsRoute.getString("outbound"))
+        val selector = (0 until outbounds.length()).map { outbounds.getJSONObject(it) }
+            .first { it.optString("tag") == "proxy" }
+        assertEquals("selector", selector.getString("type"))
+        assertEquals("auto", selector.getJSONArray("outbounds").getString(0))
         val inboundTypes = config.getJSONArray("inbounds")
         assertEquals("tun", inboundTypes.getJSONObject(0).getString("type"))
         assertEquals("mixed", inboundTypes.getJSONObject(1).getString("type"))
