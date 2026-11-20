@@ -36,6 +36,7 @@ import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
 import java.net.NetworkInterface
@@ -473,7 +474,9 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         return "${address}/$networkPrefixLength"
     }
 
-    private fun android.net.IpPrefix.toIpPrefix(): String = toString()
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun io.nekohasekai.libbox.RoutePrefix.toIpPrefix(): android.net.IpPrefix =
+        android.net.IpPrefix(InetAddress.getByName(address()), prefix())
 
     private companion object {
         const val TAG = "RaahatIranVpn"
