@@ -22,6 +22,21 @@ internal object IranVpnProfileParser {
         return createProfile(listOf(node), sourceCount = 1, automaticSelection = false)
     }
 
+    fun parseCandidates(
+        links: List<String>,
+        sourceCount: Int
+    ): List<IranVpnProfile> {
+        val nodes = links.asSequence()
+            .mapNotNull { link -> runCatching { parseNode(link) }.getOrNull() }
+            .distinctBy { "${it.host.lowercase()}:${it.port}:${it.uuid}" }
+            .take(MAX_LIST_NODES)
+            .toList()
+
+        return nodes.map { node ->
+            createProfile(listOf(node), sourceCount.coerceAtLeast(1), automaticSelection = false)
+        }
+    }
+
     fun parseAutomatic(
         links: List<String>,
         sourceCount: Int
@@ -233,6 +248,7 @@ internal object IranVpnProfileParser {
     )
 
     private const val MAX_AUTO_NODES = 30
+    private const val MAX_LIST_NODES = 100
     const val URL_TEST_ENDPOINT = "https://cp.cloudflare.com/generate_204"
     private val SERVER_NAME_PATTERN = Regex("^[A-Za-z0-9.-]{1,253}$")
     private val REALITY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,64}$")
