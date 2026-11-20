@@ -35,7 +35,7 @@ internal class VpnViewModel(application: Application) : AndroidViewModel(applica
     private val backend: Backend = GoBackend(application.applicationContext)
     private val workerDispatcher =
         Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "OneTapVPN-worker").apply { isDaemon = true }
+            Thread(runnable, "RaahatVPN-worker").apply { isDaemon = true }
         }.asCoroutineDispatcher()
 
     private val _uiState = MutableStateFlow(
