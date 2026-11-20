@@ -9,7 +9,7 @@ class IranVpnProfileParserTest {
     private val validLink =
         "vless://123e4567-e89b-12d3-a456-426614174000@example.com:443" +
             "?encryption=none&security=reality&sni=www.example.com&fp=chrome" +
-            "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=0123456789abcdef&type=tcp#Iran"
+            "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=0123abcd&type=tcp#Iran"
 
     @Test
     fun parsesVlessRealityProfileAndBuildsFullTunnelConfig() {
