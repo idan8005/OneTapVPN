@@ -108,4 +108,7 @@
     <string name="server_refresh_success_toast">%1$d سرور سازگار به فهرست اضافه شد.</string>
     <string name="server_refresh_failed">تازه‌سازی سرورها ناموفق بود: %1$s</string>
     <string name="change_server_disconnect_first">برای انتخاب یا تازه‌سازی سرورها، ابتدا VPN را قطع کنید.</string>
+
+    <string name="iran_connected_auto">اتصال در حالت خودکار برقرار است؛ موتور VPN از بین %1$d سرور، گزینهٔ پاسخ‌گو را انتخاب می‌کند.</string>
+    <string name="iran_connected_to_server">متصل به %1$s · %2$s:%3$d</string>
 </resources>
