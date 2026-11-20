@@ -16,6 +16,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.text.InputType
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -50,12 +52,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var updateButton: MaterialButton
     private lateinit var updateText: TextView
     private lateinit var updateProgress: ProgressBar
+    private lateinit var tierSwitchButton: MaterialButton
 
     private val vpnManager by lazy { IranVpnManager(applicationContext) }
     private val profileStore by lazy { IranVpnProfileStore(applicationContext) }
     private val discovery by lazy { IranServerDiscovery() }
     private val routingPreferences by lazy { RoutingPreferences(applicationContext) }
     private val updater by lazy { AppUpdater(applicationContext) }
+    private val secureTokenStore by lazy { SecureAccessTokenStore(applicationContext) }
+    private val hybridClient by lazy { HybridControlPlaneClient() }
 
     private var routing = RoutingSettings()
     private var serverProfiles: List<IranVpnProfile> = emptyList()
@@ -72,6 +77,8 @@ class MainActivity : AppCompatActivity() {
     private var pendingInstallFile: File? = null
     private var pendingProfile: IranVpnProfile? = null
     private var receiverRegistered = false
+    private var activeTier = IranVpnProfileStore.TIER_FREE
+    private var hybridSyncJob: Job? = null
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -104,7 +111,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (state == IranVpnContract.STATE_SCAN_COMPLETE) {
                 serverScanActive = false
-                serverProfiles = profileStore.readServers()
+                serverProfiles = profileStore.readActiveServers()
                 profileStore.markServerHealthChecked()
                 reconcileSelectionAfterHealthCheck()
                 val online = availableServerProfiles.size
@@ -159,14 +166,27 @@ class MainActivity : AppCompatActivity() {
         window.decorView.systemUiVisibility = 0
 
         routing = routingPreferences.read()
-        serverProfiles = profileStore.readServers()
+        activeTier = profileStore.readActiveTier()
+        if (activeTier == IranVpnProfileStore.TIER_PREMIUM &&
+            (profileStore.readPremiumProfile() == null || secureTokenStore.readToken().isNullOrBlank())
+        ) {
+            activeTier = IranVpnProfileStore.TIER_FREE
+            profileStore.saveActiveTier(activeTier)
+        }
+        serverProfiles = profileStore.readActiveServers()
         selectedServerKey = profileStore.readSelectionKey()
         reconcileSelectionAfterRefresh()
         setContentView(createContent())
         registerStatusReceiver()
         updateCachedProfileSummary()
         render()
-        if (serverProfiles.isEmpty()) {
+        if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            if (profileStore.isPremiumCatalogStale()) {
+                refreshPremiumCatalog(switchToPremiumOnSuccess = false)
+            } else if (serverProfiles.isNotEmpty() && profileStore.isServerHealthStale()) {
+                scanCachedServers()
+            }
+        } else if (serverProfiles.isEmpty()) {
             refreshServers()
         } else if (profileStore.isServerHealthStale()) {
             scanCachedServers()
@@ -188,6 +208,7 @@ class MainActivity : AppCompatActivity() {
         discoveryJob?.cancel()
         serverRefreshJob?.cancel()
         updateJob?.cancel()
+        hybridSyncJob?.cancel()
         super.onDestroy()
     }
 
@@ -251,7 +272,7 @@ class MainActivity : AppCompatActivity() {
             marginEnd = dp(6)
         })
         serverRefreshButton = outlinedButton(getString(R.string.server_refresh_button)) {
-            refreshServers()
+            refreshCurrentCatalog()
         }
         serverActions.addView(serverRefreshButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
             marginStart = dp(6)
@@ -332,6 +353,24 @@ class MainActivity : AppCompatActivity() {
         })
         content.addView(actionRow, matchWrap())
 
+        val accountRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        val accountButton = outlinedButton(getString(R.string.hybrid_account_button)) {
+            openHybridAccountDialog()
+        }
+        accountRow.addView(accountButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            marginEnd = dp(6)
+        })
+        tierSwitchButton = outlinedButton("") {
+            switchCatalogTier()
+        }
+        accountRow.addView(tierSwitchButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            marginStart = dp(6)
+        })
+        content.addView(accountRow, matchWrap().apply { topMargin = dp(10) })
+
         updateText = label("", 12f, Color.rgb(170, 190, 216)).apply {
             visibility = View.GONE
             gravity = Gravity.CENTER
@@ -389,8 +428,13 @@ class MainActivity : AppCompatActivity() {
         activeServerTag = null
         uiState = UiState.DISCOVERING
         val currentSelection = selectedServerProfile()
+        val currentCatalogStale = if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            profileStore.isPremiumCatalogStale()
+        } else {
+            profileStore.isStale()
+        }
         connectionMessage = if (
-            currentSelection != null && !profileStore.isStale() && serverProfiles.isNotEmpty()
+            currentSelection != null && !currentCatalogStale && serverProfiles.isNotEmpty()
         ) {
             getString(R.string.server_connecting_to, currentSelection.name)
         } else {
@@ -401,15 +445,33 @@ class MainActivity : AppCompatActivity() {
         discoveryJob?.cancel()
         discoveryJob = lifecycleScope.launch {
             try {
-                var profile = profileStore.read()
-                val mustRefresh = profile == null || profileStore.isStale() || serverProfiles.isEmpty()
-                if (mustRefresh) {
-                    val result = withContext(Dispatchers.IO) { discovery.discover() }
-                    profileStore.saveDiscovery(result.profile, result.servers)
-                    serverProfiles = result.servers
-                    reconcileSelectionAfterRefresh()
-                    profile = profileStore.read()
-                    renderServerSelection()
+                var profile = currentProfile()
+                if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+                    if (profile == null || profileStore.isPremiumCatalogStale()) {
+                        val token = secureTokenStore.readToken()
+                            ?: throw IOException(getString(R.string.hybrid_token_required))
+                        val catalog = withContext(Dispatchers.IO) { hybridClient.fetchCatalog(token) }
+                        if (catalog.plan != "premium" || catalog.automaticProfile == null ||
+                            catalog.servers.isEmpty()
+                        ) {
+                            throw IOException(getString(R.string.hybrid_premium_unavailable))
+                        }
+                        profileStore.savePremiumCatalog(catalog.automaticProfile, catalog.servers)
+                        serverProfiles = catalog.servers
+                        profile = catalog.automaticProfile
+                        reconcileSelectionAfterRefresh()
+                        renderServerSelection()
+                    }
+                } else {
+                    val mustRefresh = profile == null || profileStore.isStale() || serverProfiles.isEmpty()
+                    if (mustRefresh) {
+                        val result = withContext(Dispatchers.IO) { discovery.discover() }
+                        profileStore.saveDiscovery(result.profile, result.servers)
+                        serverProfiles = result.servers
+                        reconcileSelectionAfterRefresh()
+                        profile = profileStore.read()
+                        renderServerSelection()
+                    }
                 }
 
                 if (!connectionRequested) return@launch
@@ -426,8 +488,10 @@ class MainActivity : AppCompatActivity() {
                 requestVpnPermission(profile)
             } catch (error: Exception) {
                 if (!connectionRequested) return@launch
-                val cached = profileStore.read()
-                if (cached != null && serverProfiles.isNotEmpty()) {
+                val cached = currentProfile()
+                val cachedUsable = activeTier == IranVpnProfileStore.TIER_FREE ||
+                    !profileStore.isPremiumCatalogStale()
+                if (cached != null && serverProfiles.isNotEmpty() && cachedUsable) {
                     connectionMessage = getString(
                         R.string.iran_discovery_fallback,
                         cached.candidateCount,
@@ -448,7 +512,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestVpnPermission(profileOverride: IranVpnProfile? = null) {
         if (!connectionRequested) return
-        pendingProfile = profileOverride ?: profileStore.read()
+        pendingProfile = profileOverride ?: currentProfile()
         if (pendingProfile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
@@ -467,7 +531,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTunnel() {
         if (!connectionRequested) return
-        val profile = pendingProfile ?: profileStore.read()
+        val profile = pendingProfile ?: currentProfile()
         if (profile == null) {
             failConnection(getString(R.string.iran_profile_missing))
             return
@@ -524,7 +588,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateCachedProfileSummary() {
-        val profile = profileStore.selectedProfile()
+        val profile = selectedServerProfile()
         connectionMessage = if (profile != null) {
             getString(R.string.server_connecting_to, profile.name)
         } else {
@@ -578,7 +642,8 @@ class MainActivity : AppCompatActivity() {
 
         val controlsAvailable = uiState == UiState.IDLE || uiState == UiState.ERROR
         serverSelectButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true && !serverScanActive
-        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true && !serverScanActive
+        serverRefreshButton.isEnabled = controlsAvailable && serverRefreshJob?.isActive != true &&
+            hybridSyncJob?.isActive != true && !serverScanActive
         routeText.text = when (routing.mode) {
             RoutingMode.FULL_TUNNEL -> getString(R.string.full_tunnel_description)
             RoutingMode.SELECTED_APPS -> getString(R.string.selected_apps_description) +
@@ -589,12 +654,19 @@ class MainActivity : AppCompatActivity() {
     private fun activeAutomaticServer(): IranVpnProfile? {
         val tag = activeServerTag ?: return null
         val index = tag.removePrefix("node-").toIntOrNull()?.minus(1) ?: return null
-        return serverProfiles.getOrNull(index) ?: profileStore.readServers().getOrNull(index)
+        return serverProfiles.getOrNull(index)
     }
+
+    private fun currentProfile(): IranVpnProfile? =
+        if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            profileStore.readPremiumProfile()
+        } else {
+            profileStore.read()
+        }
 
     private fun selectedServerProfile(): IranVpnProfile? =
         if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
-            profileStore.read()
+            currentProfile()
         } else {
             serverProfiles.firstOrNull { it.selectionKey == selectedServerKey }
         }
@@ -610,7 +682,7 @@ class MainActivity : AppCompatActivity() {
             healthStatus = status
         )
         serverProfiles = serverProfiles.toMutableList().also { it[index] = updated }
-        profileStore.saveServerHealth(updated)
+        profileStore.saveActiveServerHealth(updated)
         if (status == "offline" && selectedServerKey == updated.selectionKey) {
             selectedServerKey = IranVpnProfileStore.AUTO_SELECTION_KEY
             profileStore.saveSelection(selectedServerKey)
@@ -648,7 +720,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderServerSelection(message: String? = null) {
         if (!::serverSummaryText.isInitialized) return
-        val autoProfile = profileStore.read()
+        val autoProfile = currentProfile()
         val selectedManual = selectedServerProfile()
         val selectionText = if (selectedServerKey == IranVpnProfileStore.AUTO_SELECTION_KEY) {
             getString(R.string.server_auto_selected, autoProfile?.candidateCount ?: 0)
@@ -662,6 +734,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.server_selection_not_found)
         }
+        val tierText = if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            getString(R.string.hybrid_tier_premium)
+        } else {
+            getString(R.string.hybrid_tier_free)
+        }
         val listText = if (serverProfiles.isEmpty()) {
             getString(R.string.server_list_empty)
         } else {
@@ -669,7 +746,15 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.server_list_count, working, autoProfile?.sourceCount ?: 0) +
                 "\n" + getString(R.string.server_health_count, working, serverProfiles.size)
         }
-        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\n")
+        serverSummaryText.text = listOfNotNull(message ?: serverNotice, tierText, selectionText, listText).joinToString("\n")
+        if (::tierSwitchButton.isInitialized) {
+            tierSwitchButton.text = if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+                getString(R.string.hybrid_switch_free)
+            } else {
+                getString(R.string.hybrid_switch_premium)
+            }
+            tierSwitchButton.isEnabled = uiState == UiState.IDLE || uiState == UiState.ERROR
+        }
     }
 
     private fun reconcileSelectionAfterRefresh() {
@@ -725,7 +810,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scanCachedServers() {
-        val profile = profileStore.read()
+        val profile = currentProfile()
         if (profile == null || serverProfiles.isEmpty()) {
             refreshServers()
             return
@@ -793,6 +878,158 @@ class MainActivity : AppCompatActivity() {
 
     private fun findConnectProgress(): ProgressBar? =
         window.decorView.findViewWithTag(CONNECT_PROGRESS_TAG)
+
+
+    private fun refreshCurrentCatalog() {
+        if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            refreshPremiumCatalog(switchToPremiumOnSuccess = true)
+        } else {
+            refreshServers()
+        }
+    }
+
+    private fun openHybridAccountDialog() {
+        val tokenInput = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            singleLine = true
+            hint = getString(R.string.hybrid_token_hint)
+            setText(secureTokenStore.readToken().orEmpty())
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), dp(4))
+            addView(tokenInput, matchWrap())
+            addView(
+                label(getString(R.string.hybrid_account_help), 12f, Color.rgb(145, 166, 195)),
+                matchWrap().apply { topMargin = dp(10) }
+            )
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.hybrid_account_title)
+            .setView(container)
+            .setPositiveButton(R.string.hybrid_sync_button) { _, _ ->
+                val token = tokenInput.text?.toString().orEmpty().trim()
+                if (token.isBlank()) {
+                    Toast.makeText(this, R.string.hybrid_token_required, Toast.LENGTH_LONG).show()
+                } else {
+                    syncHybridCatalog(token, switchToPremiumOnSuccess = true)
+                }
+            }
+            .setNeutralButton(R.string.hybrid_clear_token) { _, _ ->
+                secureTokenStore.clearToken()
+                profileStore.clearPremiumCatalog()
+                if (activeTier == IranVpnProfileStore.TIER_PREMIUM) useFreeCatalog()
+                Toast.makeText(this, R.string.hybrid_token_cleared, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.choose_apps_cancel, null)
+            .show()
+    }
+
+    private fun syncHybridCatalog(token: String, switchToPremiumOnSuccess: Boolean) {
+        if (hybridSyncJob?.isActive == true) return
+        if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
+            uiState == UiState.DISCOVERING || serverScanActive
+        ) {
+            Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
+            return
+        }
+        hybridSyncJob = lifecycleScope.launch {
+            serverNotice = getString(R.string.hybrid_syncing)
+            renderServerSelection()
+            try {
+                val catalog = withContext(Dispatchers.IO) { hybridClient.fetchCatalog(token) }
+                secureTokenStore.saveToken(token)
+                if (catalog.plan == "free") {
+                    profileStore.clearPremiumCatalog()
+                    if (activeTier == IranVpnProfileStore.TIER_PREMIUM) useFreeCatalog()
+                    serverNotice = getString(R.string.hybrid_free_account)
+                    Toast.makeText(this@MainActivity, R.string.hybrid_free_account, Toast.LENGTH_LONG).show()
+                } else if (catalog.automaticProfile == null || catalog.servers.isEmpty()) {
+                    if (activeTier == IranVpnProfileStore.TIER_PREMIUM) useFreeCatalog()
+                    serverNotice = getString(R.string.hybrid_premium_no_servers)
+                    Toast.makeText(this@MainActivity, R.string.hybrid_premium_no_servers, Toast.LENGTH_LONG).show()
+                } else {
+                    profileStore.savePremiumCatalog(catalog.automaticProfile, catalog.servers)
+                    serverNotice = getString(R.string.hybrid_premium_synced, catalog.servers.size)
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.hybrid_premium_synced, catalog.servers.size),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    if (switchToPremiumOnSuccess) activatePremiumCatalog()
+                }
+            } catch (error: Exception) {
+                serverNotice = getString(
+                    R.string.hybrid_sync_failed,
+                    error.localizedMessage ?: getString(R.string.status_error)
+                )
+                Toast.makeText(this@MainActivity, serverNotice, Toast.LENGTH_LONG).show()
+            } finally {
+                hybridSyncJob = null
+                renderServerSelection()
+                render()
+            }
+        }
+    }
+
+    private fun refreshPremiumCatalog(switchToPremiumOnSuccess: Boolean) {
+        val token = secureTokenStore.readToken()
+        if (token.isNullOrBlank()) {
+            openHybridAccountDialog()
+            return
+        }
+        syncHybridCatalog(token, switchToPremiumOnSuccess)
+    }
+
+    private fun switchCatalogTier() {
+        if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING ||
+            uiState == UiState.DISCOVERING || serverScanActive
+        ) {
+            Toast.makeText(this, R.string.change_server_disconnect_first, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+            useFreeCatalog()
+            return
+        }
+        val profile = profileStore.readPremiumProfile()
+        if (profile == null || profileStore.isPremiumCatalogStale()) {
+            refreshPremiumCatalog(switchToPremiumOnSuccess = true)
+            return
+        }
+        activatePremiumCatalog()
+    }
+
+    private fun activatePremiumCatalog() {
+        val profile = profileStore.readPremiumProfile()
+        val premiumServers = profileStore.readPremiumServers()
+        if (profile == null || premiumServers.isEmpty()) {
+            Toast.makeText(this, R.string.hybrid_premium_no_servers, Toast.LENGTH_LONG).show()
+            return
+        }
+        activeTier = IranVpnProfileStore.TIER_PREMIUM
+        profileStore.saveActiveTier(activeTier)
+        serverProfiles = premiumServers
+        selectedServerKey = IranVpnProfileStore.AUTO_SELECTION_KEY
+        profileStore.saveSelection(selectedServerKey)
+        serverNotice = getString(R.string.hybrid_premium_active)
+        renderServerSelection()
+        render()
+        if (profileStore.isServerHealthStale()) startServerScan(profile)
+    }
+
+    private fun useFreeCatalog() {
+        activeTier = IranVpnProfileStore.TIER_FREE
+        profileStore.saveActiveTier(activeTier)
+        serverProfiles = profileStore.readServers()
+        selectedServerKey = profileStore.readSelectionKey()
+        reconcileSelectionAfterRefresh()
+        serverNotice = getString(R.string.hybrid_free_active)
+        renderServerSelection()
+        render()
+        if (serverProfiles.isEmpty()) refreshServers()
+        else if (profileStore.isServerHealthStale()) scanCachedServers()
+    }
 
     private fun openSettings() {
         if (uiState == UiState.CONNECTED || uiState == UiState.CONNECTING || uiState == UiState.DISCOVERING) {
