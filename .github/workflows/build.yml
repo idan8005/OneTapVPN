@@ -134,7 +134,7 @@ jobs:
         if: steps.release_signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: RaahatVPN-Release-1.4.0
+          name: RaahatVPN-Signed-Release
           path: |
             raahat-vpn.apk
             raahat-vpn.apk.sha256
@@ -176,7 +176,7 @@ jobs:
       - name: Download verified signed APK
         uses: actions/download-artifact@v4
         with:
-          name: RaahatVPN-Release-1.4.0
+          name: RaahatVPN-Signed-Release
           path: release
 
       - name: Publish APK and checksum
