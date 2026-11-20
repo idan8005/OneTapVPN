@@ -68,6 +68,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.singbox-android:libbox:1.14.4")
     implementation(project(":vpnLib"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
