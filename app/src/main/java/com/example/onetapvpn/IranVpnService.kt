@@ -163,7 +163,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 updateForegroundNotification(
                     getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
                 )
-                startActiveServerMonitor(secret)
+                startActiveServerMonitor(secret, healthResults, chosenTag)
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -257,7 +257,9 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         val host: String,
         val port: Int,
         val pingMs: Int,
-        val speedMbps: Double
+        val speedMbps: Double,
+        val successRate: Double = 1.0,
+        val jitterMs: Int = 0
     )
 
     private fun readControllerSecret(config: String): String? = runCatching {
@@ -293,6 +295,8 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             publishServerHealth(outbound.tag, -1, -1.0, "checking")
         }
 
+        // Test all candidates concurrently, with a conservative limit to avoid
+        // overloading the phone or the current network.
         val semaphore = Semaphore(MAX_PARALLEL_PING_TESTS)
         val latencyResults = coroutineScope {
             candidates.map { outbound ->
@@ -323,20 +327,70 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             )
         }
 
-        // The background list scan checks real proxy reachability only. Speed
-        // samples are reserved for connection startup to keep refresh fast.
+        // A quick scan only needs to prove reachability. More expensive quality
+        // sampling is reserved for a connection attempt.
         if (!runSpeedTest) return measured
 
-        // A small, fixed download compares real proxied throughput without
-        // turning the check into a large data-consuming speed test.
+        // Repeat probes only for the four best responders. This provides a
+        // lightweight loss/jitter estimate without probing every node repeatedly.
+        val stabilityCandidates = measured
+            .filter { it.pingMs > 0 }
+            .sortedBy { it.pingMs }
+            .take(MAX_STABILITY_PROBE_CANDIDATES)
+        val stabilitySemaphore = Semaphore(MAX_PARALLEL_STABILITY_PROBES)
+        val stabilitySamples = coroutineScope {
+            stabilityCandidates.map { candidate ->
+                async {
+                    stabilitySemaphore.withPermit {
+                        val extra = (0 until STABILITY_REPEAT_PROBES).mapNotNull {
+                            runCatching { testOutboundLatency(secret, candidate.tag) }
+                                .getOrNull()
+                                ?.takeIf { it > 0 }
+                        }
+                        candidate.tag to extra
+                    }
+                }
+            }.awaitAll().toMap()
+        }
+
         for (index in measured.indices) {
             val current = measured[index]
             if (current.pingMs <= 0) continue
+            val samples = listOf(current.pingMs) + stabilitySamples[current.tag].orEmpty()
+            val averagePing = samples.sum() / samples.size
+            val successRate = samples.size.toDouble() / (STABILITY_REPEAT_PROBES + 1)
+            val jitter = if (samples.size > 1) samples.maxOrNull()!! - samples.minOrNull()!! else 0
+            val updated = current.copy(
+                pingMs = averagePing,
+                successRate = successRate,
+                jitterMs = jitter
+            )
+            measured[index] = updated
+            publishServerHealth(updated.tag, updated.pingMs, -1.0, "online")
+        }
+
+        // Only sample real throughput for the three strongest responders. This
+        // caps startup traffic and prevents a long serial test of every free node.
+        val speedCandidates = measured
+            .filter { it.pingMs > 0 }
+            .sortedWith(
+                compareBy<ServerHealthResult> { it.pingMs }
+                    .thenByDescending { it.successRate }
+                    .thenBy { it.jitterMs }
+            )
+            .take(MAX_SPEED_TEST_CANDIDATES)
+            .map { it.tag }
+            .toSet()
+
+        for (index in measured.indices) {
+            val current = measured[index]
+            if (current.pingMs <= 0 || current.tag !in speedCandidates) continue
             val speed = runCatching {
                 selectOutbound(secret, current.tag)
                 measureDownloadMbps()
             }.getOrDefault(-1.0)
-            measured[index] = current.copy(speedMbps = speed)
+            val updated = current.copy(speedMbps = speed)
+            measured[index] = updated
             publishServerHealth(
                 current.tag,
                 current.pingMs,
@@ -478,18 +532,18 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     }
 
     private fun selectBestServer(results: List<ServerHealthResult>): ServerHealthResult? {
-        val online = results.filter { it.pingMs > 0 }
-        if (online.isEmpty()) return null
-        val measuredSpeeds = online.filter { it.speedMbps > 0.0 }
-        if (measuredSpeeds.isEmpty()) return online.minByOrNull { it.pingMs }
-
-        val fastestMbps = measuredSpeeds.maxOf { it.speedMbps }
-        val lowestPing = online.minOf { it.pingMs }.coerceAtLeast(1)
-        return measuredSpeeds.maxByOrNull { candidate ->
-            val speedScore = (candidate.speedMbps / fastestMbps).coerceIn(0.0, 1.0)
-            val latencyScore = (lowestPing.toDouble() / candidate.pingMs).coerceIn(0.0, 1.0)
-            speedScore * SPEED_SCORE_WEIGHT + latencyScore * LATENCY_SCORE_WEIGHT
-        }
+        val selectedTag = ServerHealthScorer.selectBest(
+            results.map { result ->
+                ServerQualitySample(
+                    tag = result.tag,
+                    pingMs = result.pingMs,
+                    speedMbps = result.speedMbps,
+                    successRate = result.successRate,
+                    jitterMs = result.jitterMs
+                )
+            }
+        )
+        return results.firstOrNull { it.tag == selectedTag }
     }
 
     private fun createHealthScanConfig(config: String): String {
@@ -577,42 +631,87 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         return false
     }
 
-    private fun startActiveServerMonitor(secret: String) {
+    private fun startActiveServerMonitor(
+        secret: String,
+        initialResults: List<ServerHealthResult>,
+        initialTag: String
+    ) {
         activeServerMonitorJob?.cancel()
         activeServerMonitorJob = serviceScope.launch {
-            repeat(ACTIVE_SERVER_INITIAL_POLLS) {
-                val tag = readActiveOutboundTag(secret)
-                if (!tag.isNullOrBlank()) {
-                    publishStatus(
-                        IranVpnContract.STATE_CONNECTED,
-                        getString(R.string.iran_active_server_updated),
-                        tag
-                    )
-                }
-                kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
-            }
+            var candidates = initialResults
+            var activeTag = initialTag
+            var consecutiveFailures = 0
+
             while (isActive) {
                 kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
-                val tag = readActiveOutboundTag(secret)
-                if (!tag.isNullOrBlank()) {
+
+                val ping = runCatching { testOutboundLatency(secret, activeTag) }
+                    .getOrDefault(-1)
+                if (ping > 0) {
+                    consecutiveFailures = 0
+                    val current = candidates.firstOrNull { it.tag == activeTag }
+                    val speed = current?.speedMbps ?: -1.0
+                    publishServerHealth(activeTag, ping, speed, "online")
+                    continue
+                }
+
+                publishServerHealth(activeTag, -1, -1.0, "offline")
+                consecutiveFailures++
+                if (consecutiveFailures < ACTIVE_SERVER_FAILURES_BEFORE_SWITCH) continue
+
+                val config = currentConfig ?: continue
+                val refreshed = runCatching {
+                    checkAllServers(secret, config, runSpeedTest = false)
+                }.getOrDefault(emptyList())
+                val merged = refreshed.map { fresh ->
+                    val previous = candidates.firstOrNull { it.tag == fresh.tag }
+                    fresh.copy(
+                        speedMbps = previous?.speedMbps ?: -1.0,
+                        successRate = fresh.successRate,
+                        jitterMs = previous?.jitterMs ?: fresh.jitterMs
+                    )
+                }
+
+                var remaining = merged.filter { it.tag != activeTag }
+                var replacement: ServerHealthResult? = null
+                while (remaining.isNotEmpty() && replacement == null) {
+                    val next = selectBestServer(remaining) ?: break
+                    remaining = remaining.filterNot { it.tag == next.tag }
+                    val switched = runCatching {
+                        selectOutbound(secret, next.tag)
+                        kotlinx.coroutines.delay(350)
+                        verifyInternetThroughLocalProxy() && verifyInternetThroughTun()
+                    }.getOrDefault(false)
+                    if (switched) replacement = next
+                }
+
+                if (replacement != null) {
+                    val chosen = replacement
+                    activeTag = chosen.tag
+                    candidates = merged
+                    consecutiveFailures = 0
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
-                        getString(R.string.iran_active_server_updated),
-                        tag
+                        getString(
+                            R.string.iran_switching_server,
+                            chosen.name,
+                            chosen.host,
+                            chosen.port
+                        ),
+                        activeTag
                     )
+                    updateForegroundNotification(
+                        getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
+                    )
+                } else {
+                    // Keep the tunnel alive and retry on the next monitor cycle.
+                    candidates = merged.ifEmpty { candidates }
+                    consecutiveFailures = 0
+                    updateForegroundNotification(getString(R.string.iran_server_recovery))
                 }
             }
         }
     }
-
-    private fun readActiveOutboundTag(secret: String): String? = runCatching {
-        val selectedGroup = callController(secret, "/proxies/proxy").optString("now")
-        if (selectedGroup == AUTO_OUTBOUND_TAG) {
-            callController(secret, "/proxies/auto").optString("now")
-        } else {
-            selectedGroup
-        }
-    }.getOrNull()?.takeIf { it.startsWith("node-") }
 
     private fun notification(message: String) =
         NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
@@ -680,14 +779,23 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         if (!protect(fd)) Log.w(TAG, "Could not protect an outbound socket from the VPN tunnel.")
     }
 
+    private fun isUnderlyingNetworkMetered(): Boolean {
+        val network = connectivity.activeNetwork ?: return true
+        val capabilities = connectivity.getNetworkCapabilities(network) ?: return true
+        return !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+
     override fun openTun(options: TunOptions): Int {
         if (VpnService.prepare(this) != null) error("Android VPN permission has not been granted.")
 
+        val safeMtu = options.mtu.takeIf { it in MIN_SAFE_MTU..MAX_SAFE_MTU } ?: DEFAULT_TUN_MTU
         val builder = Builder()
             .setSession(getString(R.string.iran_vpn_session))
-            .setMtu(options.mtu)
+            .setMtu(safeMtu)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            builder.setMetered(isUnderlyingNetworkMetered())
+        }
 
         val ipv4 = options.inet4Address
         val hasIpv4Address = ipv4.hasNext()
@@ -862,7 +970,12 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         val linkProperties = connectivity.getLinkProperties(network) ?: return
         val name = linkProperties.interfaceName ?: return
         val index = runCatching { NetworkInterface.getByName(name)?.index ?: -1 }.getOrDefault(-1)
-        if (index >= 0) listener.updateDefaultInterface(name, index, false, false)
+        if (index >= 0) {
+            val capabilities = connectivity.getNetworkCapabilities(network)
+            val metered = capabilities == null ||
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            listener.updateDefaultInterface(name, index, metered, false)
+        }
     }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
@@ -986,17 +1099,22 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         val INTERNET_TEST_URLS = listOf(PING_TEST_URL, FALLBACK_PING_TEST_URL)
         const val PING_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
-        const val SPEED_TEST_TIMEOUT_MS = 8_000
-        const val SPEED_TEST_MAX_BYTES = 256L * 1024L
-        const val SPEED_TEST_MIN_BYTES = 64L * 1024L
+        const val SPEED_TEST_TIMEOUT_MS = 6_000
+        const val SPEED_TEST_MAX_BYTES = 128L * 1024L
+        const val SPEED_TEST_MIN_BYTES = 32L * 1024L
         const val INTERNET_VERIFY_TIMEOUT_MS = 8_000
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
-        const val MAX_PARALLEL_PING_TESTS = 4
-        const val SPEED_SCORE_WEIGHT = 0.65
-        const val LATENCY_SCORE_WEIGHT = 0.35
-        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 5_000L
-        const val ACTIVE_SERVER_INITIAL_POLLS = 20
+        const val MAX_PARALLEL_PING_TESTS = 6
+        const val MAX_PARALLEL_STABILITY_PROBES = 2
+        const val MAX_STABILITY_PROBE_CANDIDATES = 4
+        const val STABILITY_REPEAT_PROBES = 2
+        const val MAX_SPEED_TEST_CANDIDATES = 3
+        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 10_000L
+        const val ACTIVE_SERVER_FAILURES_BEFORE_SWITCH = 2
+        const val MIN_SAFE_MTU = 1280
+        const val MAX_SAFE_MTU = 1500
+        const val DEFAULT_TUN_MTU = 1400
 
         @Volatile
         private var isLibboxReady = false

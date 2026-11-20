@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
                         return
                     }
                     uiState = UiState.CONNECTED
-                    connectionMessage = getString(R.string.iran_connected)
+                    connectionMessage = message.ifBlank { getString(R.string.iran_connected) }
                     render()
                 }
                 IranVpnContract.STATE_ERROR -> {
@@ -555,7 +555,11 @@ class MainActivity : AppCompatActivity() {
                         selected.name,
                         selected.serverHost,
                         selected.serverPort
-                    )
+                    ) + if (selected.pingMs > 0) {
+                        "\\n" + serverHealthLabel(selected)
+                    } else {
+                        ""
+                    }
                 }
             }
             else -> connectionMessage.ifBlank { getString(R.string.connection_help) }
@@ -611,6 +615,7 @@ class MainActivity : AppCompatActivity() {
             profileStore.saveSelection(selectedServerKey)
         }
         renderServerSelection()
+        if (uiState == UiState.CONNECTED) render()
     }
 
     private fun serverHealthLabel(server: IranVpnProfile): String = when {
