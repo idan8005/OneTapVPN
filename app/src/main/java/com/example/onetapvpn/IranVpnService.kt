@@ -225,15 +225,253 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         sendBroadcast(intent)
     }
 
-    private fun startActiveServerMonitor(config: String) {
-        activeServerMonitorJob?.cancel()
-        val secret = runCatching {
-            JSONObject(config)
-                .getJSONObject("experimental")
-                .getJSONObject("clash_api")
-                .getString("secret")
-        }.getOrNull() ?: return
+    private data class ServerHealthResult(
+        val tag: String,
+        val name: String,
+        val host: String,
+        val port: Int,
+        val pingMs: Int,
+        val speedMbps: Double
+    )
 
+    private fun readControllerSecret(config: String): String? = runCatching {
+        JSONObject(config)
+            .getJSONObject("experimental")
+            .getJSONObject("clash_api")
+            .getString("secret")
+    }.getOrNull()
+
+    private suspend fun checkAllServers(secret: String, config: String): List<ServerHealthResult> {
+        val candidates = readServerOutbounds(config)
+        if (candidates.isEmpty()) error(getString(R.string.iran_profile_missing))
+
+        candidates.forEach { outbound ->
+            publishServerHealth(outbound.tag, -1, -1.0, "checking")
+        }
+
+        val semaphore = Semaphore(MAX_PARALLEL_PING_TESTS)
+        val latencyResults = coroutineScope {
+            candidates.map { outbound ->
+                async {
+                    semaphore.withPermit {
+                        val ping = runCatching { testOutboundLatency(secret, outbound.tag) }
+                            .getOrDefault(-1)
+                        ServerHealthResult(
+                            tag = outbound.tag,
+                            name = outbound.name,
+                            host = outbound.host,
+                            port = outbound.port,
+                            pingMs = ping,
+                            speedMbps = -1.0
+                        )
+                    }
+                }
+            }.awaitAll()
+        }
+
+        val measured = latencyResults.toMutableList()
+        latencyResults.forEach { result ->
+            publishServerHealth(
+                result.tag,
+                result.pingMs,
+                result.speedMbps,
+                if (result.pingMs > 0) "online" else "offline"
+            )
+        }
+
+        // A small, fixed download compares real proxied throughput without
+        // turning the check into a large data-consuming speed test.
+        for (index in measured.indices) {
+            val current = measured[index]
+            if (current.pingMs <= 0) continue
+            val speed = runCatching {
+                selectOutbound(secret, current.tag)
+                measureDownloadMbps()
+            }.getOrDefault(-1.0)
+            measured[index] = current.copy(speedMbps = speed)
+            publishServerHealth(
+                current.tag,
+                current.pingMs,
+                speed,
+                if (speed > 0) "online" else "reachable"
+            )
+        }
+        return measured
+    }
+
+    private data class ServerOutbound(
+        val tag: String,
+        val name: String,
+        val host: String,
+        val port: Int
+    )
+
+    private fun readServerOutbounds(config: String): List<ServerOutbound> {
+        val outbounds = JSONObject(config).optJSONArray("outbounds") ?: return emptyList()
+        return buildList {
+            for (index in 0 until outbounds.length()) {
+                val item = outbounds.optJSONObject(index) ?: continue
+                val tag = item.optString("tag")
+                if (item.optString("type") != "vless" || !tag.startsWith("node-")) continue
+                val host = item.optString("server")
+                if (host.isBlank()) continue
+                add(
+                    ServerOutbound(
+                        tag = tag,
+                        name = tag,
+                        host = host,
+                        port = item.optInt("server_port", 443)
+                    )
+                )
+            }
+        }
+    }
+
+    private fun testOutboundLatency(secret: String, tag: String): Int {
+        val url = URLEncoder.encode(PING_TEST_URL, "UTF-8")
+        val response = callController(
+            secret,
+            "/proxies/$tag/delay?timeout=$PING_TEST_TIMEOUT_MS&url=$url"
+        )
+        return response.optInt("delay", -1).takeIf { it > 0 } ?: -1
+    }
+
+    private fun selectOutbound(secret: String, tag: String) {
+        callController(
+            secret,
+            "/proxies/proxy",
+            method = "PUT",
+            body = JSONObject().put("name", tag)
+        )
+    }
+
+    private fun callController(
+        secret: String,
+        path: String,
+        method: String = "GET",
+        body: JSONObject? = null
+    ): JSONObject {
+        val connection = (URL("$CONTROLLER_BASE_URL$path").openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = CONTROLLER_TIMEOUT_MS
+            readTimeout = CONTROLLER_TIMEOUT_MS
+            useCaches = false
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer $secret")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+        }
+        return try {
+            if (body != null) {
+                connection.outputStream.use { output ->
+                    output.write(body.toString().toByteArray(Charsets.UTF_8))
+                }
+            }
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val detail = runCatching {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() }
+                }.getOrNull().orEmpty()
+                throw java.io.IOException("Local VPN controller returned HTTP $status. $detail")
+            }
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            if (response.isBlank()) JSONObject() else JSONObject(response)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun measureDownloadMbps(): Double {
+        val proxy = Proxy(
+            Proxy.Type.HTTP,
+            InetSocketAddress(LOOPBACK_SPEED_PROXY_HOST, LOOPBACK_SPEED_PROXY_PORT)
+        )
+        val connection = (URL(SPEED_TEST_URL).openConnection(proxy) as HttpURLConnection).apply {
+            connectTimeout = SPEED_TEST_TIMEOUT_MS
+            readTimeout = SPEED_TEST_TIMEOUT_MS
+            useCaches = false
+            setRequestProperty("Accept-Encoding", "identity")
+            setRequestProperty("Cache-Control", "no-cache")
+            setRequestProperty("User-Agent", "RaahatVPN/\${BuildConfig.VERSION_NAME}")
+        }
+        val startedAt = System.nanoTime()
+        return try {
+            val status = connection.responseCode
+            if (status !in 200..299) throw java.io.IOException("Speed test returned HTTP $status")
+            var totalBytes = 0L
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(16 * 1024)
+                while (totalBytes < SPEED_TEST_MAX_BYTES) {
+                    val count = input.read(
+                        buffer,
+                        0,
+                        minOf(buffer.size.toLong(), SPEED_TEST_MAX_BYTES - totalBytes).toInt()
+                    )
+                    if (count < 0) break
+                    totalBytes += count
+                }
+            }
+            val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000.0
+            if (totalBytes < SPEED_TEST_MIN_BYTES || elapsedSeconds <= 0.0) {
+                throw java.io.IOException("Speed test response was too small.")
+            }
+            totalBytes * 8.0 / elapsedSeconds / 1_000_000.0
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun selectBestServer(results: List<ServerHealthResult>): ServerHealthResult? {
+        val online = results.filter { it.pingMs > 0 }
+        if (online.isEmpty()) return null
+        val measuredSpeeds = online.filter { it.speedMbps > 0.0 }
+        if (measuredSpeeds.isEmpty()) return online.minByOrNull { it.pingMs }
+
+        val fastestMbps = measuredSpeeds.maxOf { it.speedMbps }
+        val lowestPing = online.minOf { it.pingMs }.coerceAtLeast(1)
+        return measuredSpeeds.maxByOrNull { candidate ->
+            val speedScore = (candidate.speedMbps / fastestMbps).coerceIn(0.0, 1.0)
+            val latencyScore = (lowestPing.toDouble() / candidate.pingMs).coerceIn(0.0, 1.0)
+            speedScore * SPEED_SCORE_WEIGHT + latencyScore * LATENCY_SCORE_WEIGHT
+        }
+    }
+
+    private fun publishServerHealth(tag: String, pingMs: Int, speedMbps: Double, status: String) {
+        sendBroadcast(
+            Intent(IranVpnContract.ACTION_STATUS)
+                .setPackage(packageName)
+                .putExtra(IranVpnContract.EXTRA_STATE, IranVpnContract.STATE_SERVER_HEALTH)
+                .putExtra(IranVpnContract.EXTRA_SERVER_TAG, tag)
+                .putExtra(IranVpnContract.EXTRA_PING_MS, pingMs)
+                .putExtra(IranVpnContract.EXTRA_SPEED_MBPS, speedMbps)
+                .putExtra(IranVpnContract.EXTRA_HEALTH_STATUS, status)
+        )
+    }
+
+    private fun verifyInternetThroughLocalProxy(): Boolean = runCatching {
+        val proxy = Proxy(
+            Proxy.Type.HTTP,
+            InetSocketAddress(LOOPBACK_SPEED_PROXY_HOST, LOOPBACK_SPEED_PROXY_PORT)
+        )
+        val connection = (URL(PING_TEST_URL).openConnection(proxy) as HttpURLConnection).apply {
+            connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
+            readTimeout = INTERNET_VERIFY_TIMEOUT_MS
+            requestMethod = "GET"
+            useCaches = false
+        }
+        try {
+            connection.responseCode in 200..299
+        } finally {
+            connection.disconnect()
+        }
+    }.onFailure {
+        Log.w(TAG, "The selected VPN server did not pass the Internet check.", it)
+    }.getOrDefault(false)
+
+    private fun startActiveServerMonitor(config: String, secret: String) {
+        activeServerMonitorJob?.cancel()
         activeServerMonitorJob = serviceScope.launch {
             repeat(ACTIVE_SERVER_INITIAL_POLLS) {
                 val tag = readActiveOutboundTag(secret)
@@ -260,26 +498,14 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         }
     }
 
-    private fun readActiveOutboundTag(secret: String): String? {
-        val connection = (URL(ACTIVE_SERVER_API_URL).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = ACTIVE_SERVER_API_TIMEOUT_MS
-            readTimeout = ACTIVE_SERVER_API_TIMEOUT_MS
-            useCaches = false
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Authorization", "Bearer $secret")
+    private fun readActiveOutboundTag(secret: String): String? = runCatching {
+        val selectedGroup = callController(secret, "/proxies/proxy").optString("now")
+        if (selectedGroup == AUTO_OUTBOUND_TAG) {
+            callController(secret, "/proxies/auto").optString("now")
+        } else {
+            selectedGroup
         }
-        return try {
-            if (connection.responseCode !in 200..299) return null
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            JSONObject(response).optString("now").takeIf { it.isNotBlank() && it != "null" }
-        } catch (error: Exception) {
-            Log.d(TAG, "Automatic server selection is not available yet", error)
-            null
-        } finally {
-            connection.disconnect()
-        }
-    }
+    }.getOrNull()?.takeIf { it.startsWith("node-") }
 
     private fun notification(message: String) =
         NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
