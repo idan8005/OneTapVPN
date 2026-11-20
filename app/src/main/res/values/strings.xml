@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OneTap VPN</string>
+    <string name="app_tagline">Private connection, one tap away</string>
+    <string name="connection_title">VPN CONNECTION</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnecting">Disconnecting…</string>
+    <string name="status_error">Connection problem</string>
+    <string name="tap_to_connect">Tap the button to connect securely.</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connecting_button">Connecting…</string>
+    <string name="disconnecting_button">Disconnecting…</string>
+    <string name="profile_section">VPN profile</string>
+    <string name="profile_description">On the first connection, OneTap VPN attempts to create a free WARP profile automatically. You can also import your own WireGuard profile.</string>
+    <string name="import_file">Import WireGuard file</string>
+    <string name="paste_clipboard">Paste config from clipboard</string>
+    <string name="warp_note">WARP registration uses an unofficial Cloudflare endpoint and may stop working if Cloudflare changes it. WARP does not provide manual country selection or guaranteed unlimited service.</string>
+    <string name="clipboard_empty">The clipboard is empty.</string>
+    <string name="disconnect_before_import">Disconnect the VPN before replacing the active profile.</string>
+    <string name="validating_profile">Checking and saving profile…</string>
+    <string name="profile_imported">WireGuard profile imported and encrypted on this device.</string>
+    <string name="vpn_permission_denied">VPN permission was not granted. Approve the Android prompt to connect.</string>
+    <string name="unknown_error">An unexpected error occurred.</string>
+    <string name="error_prefix">Could not connect: %1$s</string>
+    <string name="profile_too_large">The selected profile is too large.</string>
+    <string name="cannot_read_profile">Could not read the selected profile.</string>
+    <string name="import_failed">Import failed: %1$s</string>
+</resources>
