@@ -148,9 +148,9 @@ internal object IranVpnProfileParser {
                     .put("tag", "auto")
                     .put("outbounds", JSONArray(nodeTags))
                     .put("url", URL_TEST_ENDPOINT)
-                    .put("interval", "90s")
-                    .put("tolerance", 35)
-                    .put("idle_timeout", "5m")
+                    .put("interval", "30s")
+                    .put("tolerance", 25)
+                    .put("idle_timeout", "4m")
             )
             "auto"
         } else {
@@ -232,7 +232,7 @@ internal object IranVpnProfileParser {
         val outbound: JSONObject
     )
 
-    private const val MAX_AUTO_NODES = 100
+    private const val MAX_AUTO_NODES = 30
     const val URL_TEST_ENDPOINT = "https://cp.cloudflare.com/generate_204"
     private val SERVER_NAME_PATTERN = Regex("^[A-Za-z0-9.-]{1,253}$")
     private val REALITY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,64}$")
