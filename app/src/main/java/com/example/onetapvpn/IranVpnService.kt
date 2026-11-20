@@ -330,21 +330,45 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
 
         if (options.autoRoute) {
             val dns = options.dnsServerAddress
-            while (dns.hasNext()) builder.addDnsServer(dns.next())
+            var dnsServerCount = 0
+            while (dns.hasNext()) {
+                builder.addDnsServer(dns.next())
+                dnsServerCount++
+            }
+            // Avoid creating a VPN interface without any DNS servers on devices where
+            // libbox has no Android DNS addresses to hand to VpnService.Builder.
+            if (dnsServerCount == 0) {
+                builder.addDnsServer("1.1.1.1")
+                builder.addDnsServer("8.8.8.8")
+                Log.w(TAG, "sing-box supplied no DNS addresses; installed public DNS fallback addresses.")
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // sing-box can supply only the interface/endpoint routes on some Android builds.
+                // Having any route is not enough: without /0 Android installs a VPN interface
+                // but normal Internet destinations never enter it.
+                var hasIpv4DefaultRoute = false
                 val ipv4Routes = options.inet4RouteAddress
-                if (ipv4Routes.hasNext()) {
-                    while (ipv4Routes.hasNext()) builder.addRoute(ipv4Routes.next().toIpPrefix())
-                } else if (hasIpv4Address) {
+                while (ipv4Routes.hasNext()) {
+                    val route = ipv4Routes.next()
+                    if (route.prefix() == 0) hasIpv4DefaultRoute = true
+                    builder.addRoute(route.toIpPrefix())
+                }
+                if (hasIpv4Address && !hasIpv4DefaultRoute) {
                     builder.addRoute("0.0.0.0", 0)
+                    Log.w(TAG, "Added missing IPv4 default route to Android VPN interface.")
                 }
 
+                var hasIpv6DefaultRoute = false
                 val ipv6Routes = options.inet6RouteAddress
-                if (ipv6Routes.hasNext()) {
-                    while (ipv6Routes.hasNext()) builder.addRoute(ipv6Routes.next().toIpPrefix())
-                } else if (hasIpv6Address) {
+                while (ipv6Routes.hasNext()) {
+                    val route = ipv6Routes.next()
+                    if (route.prefix() == 0) hasIpv6DefaultRoute = true
+                    builder.addRoute(route.toIpPrefix())
+                }
+                if (hasIpv6Address && !hasIpv6DefaultRoute) {
                     builder.addRoute("::", 0)
+                    Log.w(TAG, "Added missing IPv6 default route to Android VPN interface.")
                 }
 
                 val excluded4 = options.inet4RouteExcludeAddress
@@ -352,24 +376,28 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 val excluded6 = options.inet6RouteExcludeAddress
                 while (excluded6.hasNext()) builder.excludeRoute(excluded6.next().toIpPrefix())
             } else {
+                var hasIpv4DefaultRoute = false
                 val ipv4Routes = options.inet4RouteRange
-                if (ipv4Routes.hasNext()) {
-                    while (ipv4Routes.hasNext()) {
-                        val range = ipv4Routes.next()
-                        builder.addRoute(range.address(), range.prefix())
-                    }
-                } else if (hasIpv4Address) {
+                while (ipv4Routes.hasNext()) {
+                    val range = ipv4Routes.next()
+                    if (range.prefix() == 0) hasIpv4DefaultRoute = true
+                    builder.addRoute(range.address(), range.prefix())
+                }
+                if (hasIpv4Address && !hasIpv4DefaultRoute) {
                     builder.addRoute("0.0.0.0", 0)
+                    Log.w(TAG, "Added missing IPv4 default route to Android VPN interface.")
                 }
 
+                var hasIpv6DefaultRoute = false
                 val ipv6Routes = options.inet6RouteRange
-                if (ipv6Routes.hasNext()) {
-                    while (ipv6Routes.hasNext()) {
-                        val range = ipv6Routes.next()
-                        builder.addRoute(range.address(), range.prefix())
-                    }
-                } else if (hasIpv6Address) {
+                while (ipv6Routes.hasNext()) {
+                    val range = ipv6Routes.next()
+                    if (range.prefix() == 0) hasIpv6DefaultRoute = true
+                    builder.addRoute(range.address(), range.prefix())
+                }
+                if (hasIpv6Address && !hasIpv6DefaultRoute) {
                     builder.addRoute("::", 0)
+                    Log.w(TAG, "Added missing IPv6 default route to Android VPN interface.")
                 }
             }
 
