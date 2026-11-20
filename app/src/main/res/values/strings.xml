@@ -54,7 +54,7 @@
     <string name="security_notice_title">Public volunteer VPN warning</string>
     <string name="security_notice">Public servers are discovered from independent sources and are not operated by Raahat VPN. They can disappear or be unsafe. Do not send passwords, banking or confidential data through them.</string>
     <string name="status_busy">Please wait…</string>
-    <string name="server_card_title">Best available server</string>
+    <string name="server_card_title">Classic VPN Gate fallback</string>
     <string name="server_count">%1$d server(s) currently listed</string>
     <string name="routing_title">Traffic routing</string>
     <string name="routing_help">Choose which apps should use the VPN tunnel.</string>
@@ -69,12 +69,9 @@
     <string name="iran_discovered_count">Found %1$d VLESS + REALITY candidates from %2$d sources. The fastest responsive server will be selected automatically.</string>
     <string name="iran_discovery_failed">Automatic server discovery failed: %1$s. Check your connection and retry.</string>
     <string name="iran_discovery_fallback">Refresh failed; using %1$d cached candidates. %2$s</string>
-    <string name="iran_connect">Connect with Iran mode</string>
     <string name="iran_disconnect">Disconnect Iran mode</string>
     <string name="iran_profile_empty">No server found yet; automatic discovery is running.</string>
     <string name="iran_profile_loaded">%1$d saved servers from %2$d sources are ready to test.</string>
-    <string name="iran_profile_invalid">Profile could not be imported: %1$s</string>
-    <string name="iran_profile_input_hint">Paste a vless:// link with security=reality, pbk, sni and sid.</string>
     <string name="iran_engine_starting">Starting the alternative VPN engine…</string>
     <string name="iran_engine_started">Engine started; testing servers and selecting a responsive candidate.</string>
     <string name="iran_engine_error">Iran-mode connection failed: %1$s</string>
