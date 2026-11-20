@@ -4,3 +4,11 @@ local.properties
 **/build/
 *.iml
 .DS_Store
+
+# Never commit Android signing identities or credentials.
+*.jks
+*.keystore
+keystore.properties
+release-signing/
+GITHUB_SECRETS_SETUP.txt
+SIGNING_BACKUP.txt
