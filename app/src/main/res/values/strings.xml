@@ -42,7 +42,6 @@
     <string name="refresh_servers">Refresh servers</string>
     <string name="update_title">App updates</string>
     <string name="check_updates">Check for updates</string>
-    <string name="download_update">Download update</string>
     <string name="update_checking">Checking for a new version…</string>
     <string name="update_current">You are using the latest version.</string>
     <string name="update_available">Version %1$s is available.</string>
