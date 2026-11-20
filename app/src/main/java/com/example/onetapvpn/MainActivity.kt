@@ -618,9 +618,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             val checked = serverProfiles.count { it.pingMs > 0 }
             getString(R.string.server_list_count, serverProfiles.size, autoProfile?.sourceCount ?: 0) +
-                "\\n" + getString(R.string.server_health_count, checked, serverProfiles.size)
+                "\n" + getString(R.string.server_health_count, checked, serverProfiles.size)
         }
-        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\\n")
+        serverSummaryText.text = listOfNotNull(message ?: serverNotice, selectionText, listText).joinToString("\n")
     }
 
     private fun reconcileSelectionAfterRefresh() {
