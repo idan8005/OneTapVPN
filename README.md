@@ -1,47 +1,50 @@
 # OneTap VPN for Android
 
-OneTap VPN is a lightweight Android client built on the official WireGuard tunnel library. It supports a one-tap connect/disconnect flow, automatic first-run WARP profile provisioning, and importing an existing WireGuard `.conf` profile.
+OneTap VPN is a lightweight Android client built on the official WireGuard tunnel library. It supports one-tap connect/disconnect, first-run WARP profile provisioning, importing and exporting WireGuard profiles, and encrypted on-device profile storage.
 
-## Build an APK
+## Current version
 
-A push to `main` or `master` runs GitHub Actions. The workflow performs Android lint, unit tests, builds the debug APK, verifies that the APK exists, and uploads it as the `OneTapVPN-APK` artifact.
-
-1. Open the repository's **Actions** tab.
-2. Open the latest successful **Build and verify OneTapVPN APK** run.
-3. Download `OneTapVPN-APK` from the Artifacts section and extract `app-debug.apk`.
-4. Open the APK on an Android device and approve Android's installation prompt.
-5. On the first VPN connection, approve the separate Android VPN permission prompt.
-
-The debug APK is suitable for direct installation and testing. A public Play Store release requires a separately managed release-signing key and a release build. Hosted debug builds use the runner's debug signing certificate; installing a build signed by a different runner may require uninstalling the previous debug build first. A stable update path requires a user-managed signing key stored in GitHub Actions Secrets.
-
-## Connection options
-
-- **Automatic WARP profile:** On the first connection, the app attempts to create a free Cloudflare WARP profile. Cloudflare's consumer registration endpoint used by this feature is unofficial for third-party clients and may be changed or blocked without notice. Automatic provisioning is therefore not guaranteed.
-- **Your own WireGuard profile:** Import a `.conf` file or paste its contents from the clipboard. The profile is size-limited and validated before it is saved.
-
-Profiles are encrypted with AES-GCM using a key held by Android Keystore. App backup and device-transfer backup are disabled for app data so encrypted profiles are not restored without their device-bound key. A legacy plaintext profile from older builds is migrated to encrypted storage on first read.
-
-## Improvements in version 1.1.0
-
-- Serialized VPN operations to prevent rapid repeated taps from starting concurrent backend/network work.
-- Correctly disconnects without re-registering WARP or parsing a profile.
-- Restores the UI status from the active WireGuard backend when the app returns to the foreground.
-- Uses the current published WireGuard tunnel library version.
-- Validates imported and automatically provisioned profiles before storing/connecting.
-- Encrypts stored WireGuard private keys using Android Keystore.
-- Adds Persian localization, a launcher icon, import-from-file support, and Android backup exclusions.
-- Disables Android Always-on VPN until a persistent Always-on callback/profile-restoration path is implemented and tested.
-
-## Important limitations
-
-- Android requires the user to approve VPN access the first time. An app cannot bypass that operating-system consent dialog.
-- Cloudflare WARP does not provide arbitrary country selection, and this project does not promise unlimited service, a particular speed, or guaranteed availability.
-- The current artifact is a debug-signed APK. Do not distribute it as a production release.
-
-## Project details
-
+- Version: **1.2.0**
+- Version code: **3**
 - Android package: `com.example.onetapvpn`
-- App version: `1.1.0` (version code 2)
 - Minimum Android: Android 7.0 (API 24)
 - Java: 17
 - WireGuard tunnel library: `1.0.20260102`
+
+## Build and test
+
+Every push to `main` or `master` runs:
+
+1. Android Lint.
+2. JVM unit tests.
+3. An Android emulator UI smoke test.
+4. Debug APK build and file verification.
+5. If the four release-signing Actions secrets exist, signed Release APK build and signature verification.
+
+The latest successful workflow provides `OneTapVPN-Debug-APK`. Once signing secrets are configured, it also publishes `OneTapVPN-Release-1.2.0` with the signed APK, SHA-256 checksum, and signing verification output.
+
+See [RELEASE_SIGNING_FA.md](RELEASE_SIGNING_FA.md) for the four GitHub Actions secret names and the one-time setup instructions. The private keystore must never be committed to this repository.
+
+## Stable signing and updates
+
+The release APK is signed with a dedicated keystore. Keep that keystore and its passwords backed up. All future Release APKs must use the same key and a higher version code to update in place without uninstalling.
+
+The older 1.1.0 APK was signed with a temporary debug certificate. Android will not allow the fixed-key Release APK to update that debug build in place. If the old build is installed, see the migration instructions in [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) before uninstalling it.
+
+## Connection options
+
+- **Automatic WARP profile:** On first connection, the app attempts to create a free Cloudflare WARP profile. The consumer registration endpoint used is unofficial for third-party clients and may be changed or blocked without notice. Automatic provisioning is not guaranteed.
+- **Your own WireGuard profile:** Import a `.conf` file or paste its contents from the clipboard. Profiles are size-limited and validated before saving.
+- **Profile export:** Export a saved WireGuard profile before moving installations. The exported file contains the private key; protect it and delete it after importing it on the destination device.
+
+Profiles are encrypted with AES-GCM using an Android Keystore key. App backup and device-transfer backup are disabled so device-bound encrypted profiles are not restored without their key.
+
+## Physical-device validation
+
+GitHub Actions runs a UI smoke test on an Android emulator. This is not a substitute for a real phone, carrier/Wi-Fi, DNS, and VPN handshake test. Follow [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) on a physical Android phone and share only redacted diagnostics.
+
+## Important limitations
+
+- Android requires the user to approve VPN access on first connection.
+- WARP does not provide arbitrary country selection, and this project does not promise unlimited service, a particular speed, or guaranteed availability.
+- A successful build, emulator UI test, or signed APK verification does not prove a successful real-world VPN handshake.
