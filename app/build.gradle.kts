@@ -8,7 +8,9 @@ val taggedVersionName = providers.environmentVariable("GITHUB_REF_NAME").orNull
     ?.removePrefix("v")
     ?.takeIf { Regex("^\\d+\\.\\d+\\.\\d+$").matches(it) }
 val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
-val resolvedVersionName = taggedVersionName ?: baseVersionName
+val resolvedVersionName = providers.environmentVariable("RAAHAT_VERSION_NAME").orNull
+    ?: taggedVersionName
+    ?: baseVersionName
 val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(14) ?: 14
 
 val releaseStoreFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
