@@ -112,4 +112,17 @@
     <string name="iran_connected_to_server">Connected to %1$s · %2$s:%3$d</string>
     <string name="iran_connected_auto_pending">Connected in automatic mode. Waiting for the engine to report the selected server (%1$d candidates available)…</string>
     <string name="iran_active_server_updated">The active server was identified.</string>
+
+    <string name="iran_server_health_checking">Testing each server: real connection ping and a small download-speed sample…</string>
+    <string name="iran_no_server_passed_test">None of the listed servers passed the Internet test. Refresh the list and try again.</string>
+    <string name="iran_manual_server_unavailable">The manually selected server did not pass the connectivity test. Choose another server.</string>
+    <string name="iran_internet_test_failed">The server responded, but the Internet check through the VPN failed. This server was not marked connected.</string>
+    <string name="iran_connected_verified">Internet access through the selected VPN server was verified.</string>
+    <string name="server_health_checking">Testing…</string>
+    <string name="server_health_offline">Offline / no response</string>
+    <string name="server_health_metrics">%1$d ms · %2$.1f Mbps</string>
+    <string name="server_health_ping_only">%1$d ms · speed unavailable</string>
+    <string name="server_health_not_tested">Not tested yet</string>
+    <string name="server_picker_item_with_health">%1$s — %2$s:%3$d · %4$s</string>
+    <string name="server_health_count">%1$d/%2$d servers responded to the ping test</string>
 </resources>
