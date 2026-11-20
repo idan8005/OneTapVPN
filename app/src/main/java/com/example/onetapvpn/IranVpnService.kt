@@ -138,6 +138,9 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                 if (!verifyInternetThroughLocalProxy()) {
                     error(getString(R.string.iran_internet_test_failed))
                 }
+                if (!verifyInternetThroughTun()) {
+                    error(getString(R.string.iran_tun_internet_test_failed))
+                }
 
                 val chosen = healthResults.first { it.tag == chosenTag }
                 publishStatus(
@@ -410,7 +413,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             useCaches = false
             setRequestProperty("Accept-Encoding", "identity")
             setRequestProperty("Cache-Control", "no-cache")
-            setRequestProperty("User-Agent", "RaahatVPN/\${BuildConfig.VERSION_NAME}")
+            setRequestProperty("User-Agent", "RaahatVPN/${BuildConfig.VERSION_NAME}")
         }
         val startedAt = System.nanoTime()
         return try {
@@ -484,6 +487,26 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         }
     }.onFailure {
         Log.w(TAG, "The selected VPN server did not pass the Internet check.", it)
+    }.getOrDefault(false)
+
+    private fun verifyInternetThroughTun(): Boolean = runCatching {
+        // This request deliberately does not use the local proxy. Since the app
+        // package is included in both full-tunnel and selected-app mode, Android
+        // must route this request through the established TUN interface.
+        val connection = (URL(PING_TEST_URL).openConnection() as HttpURLConnection).apply {
+            connectTimeout = INTERNET_VERIFY_TIMEOUT_MS
+            readTimeout = INTERNET_VERIFY_TIMEOUT_MS
+            requestMethod = "GET"
+            useCaches = false
+            setRequestProperty("Cache-Control", "no-cache")
+        }
+        try {
+            connection.responseCode in 200..299
+        } finally {
+            connection.disconnect()
+        }
+    }.onFailure {
+        Log.w(TAG, "Internet traffic did not pass through Android's VPN interface.", it)
     }.getOrDefault(false)
 
     private fun startActiveServerMonitor(secret: String) {
