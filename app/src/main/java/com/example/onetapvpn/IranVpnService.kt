@@ -193,11 +193,9 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         }.getOrNull() ?: return
 
         activeServerMonitorJob = serviceScope.launch {
-            var lastTag: String? = null
             repeat(ACTIVE_SERVER_INITIAL_POLLS) {
                 val tag = readActiveOutboundTag(secret)
                 if (!tag.isNullOrBlank()) {
-                    lastTag = tag
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
                         getString(R.string.iran_active_server_updated),
