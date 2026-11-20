@@ -96,13 +96,13 @@ jobs:
           echo "configured=true" >> "$GITHUB_OUTPUT"
           echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Require release signing for version tags
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Require release signing for published update channels
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/feature/iran-singbox-mode'))
         env:
           SIGNING_CONFIGURED: ${{ steps.release_signing.outputs.configured }}
         run: |
           test "$SIGNING_CONFIGURED" = "true" || {
-            echo "A stable release signing key is required for tagged releases." >&2
+            echo "A stable release signing key is required to publish an in-app update." >&2
             exit 1
           }
 
@@ -163,12 +163,15 @@ jobs:
 
   publish_release:
     name: Publish versioned GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/feature/iran-singbox-mode'))
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Checkout source for version metadata
+        uses: actions/checkout@v5
+
       - name: Download verified signed APK
         uses: actions/download-artifact@v4
         with:
@@ -183,7 +186,9 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME}"
           else
-            VERSION="v$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+            BASE_VERSION="$(sed -n 's/^val baseVersionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts | head -n 1)"
+            [[ "$BASE_VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]
+            VERSION="v${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
           fi
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
@@ -192,6 +197,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: Raahat VPN ${{ steps.release_version.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: true
