@@ -61,13 +61,18 @@
     <string name="update_initial">Check GitHub Releases for a newer Raahat VPN version.</string>
     <string name="server_already_active">An existing VPN connection is active.</string>
     <string name="connected_existing_session">Restored the existing VPN connection.</string>
-    <string name="iran_mode_title">Iran compatibility mode · VLESS + REALITY</string>
-    <string name="iran_mode_description">Import your own VLESS + REALITY server link. A working server profile is required; free servers are not guaranteed.</string>
-    <string name="iran_import_profile">Import VLESS link</string>
+    <string name="iran_mode_title">Automatic connection for restricted networks</string>
+    <string name="iran_mode_description">The app discovers public servers, filters supported profiles, tests candidates and automatically selects a responsive node.</string>
+    <string name="iran_refresh_servers">Find and refresh servers</string>
+    <string name="iran_use_vpngate">Use classic VPN Gate servers</string>
+    <string name="iran_discovery_loading">Discovering public feeds and checking server profiles…</string>
+    <string name="iran_discovered_count">Found %1$d VLESS + REALITY candidates from %2$d sources. The fastest responsive server will be selected automatically.</string>
+    <string name="iran_discovery_failed">Automatic server discovery failed: %1$s. Check your connection and retry.</string>
+    <string name="iran_discovery_fallback">Refresh failed; using %1$d cached candidates. %2$s</string>
     <string name="iran_connect">Connect with Iran mode</string>
     <string name="iran_disconnect">Disconnect Iran mode</string>
     <string name="iran_profile_empty">No Iran-mode profile imported.</string>
-    <string name="iran_profile_loaded">Profile ready: %1$s:%2$d</string>
+    <string name="iran_profile_loaded">%1$d saved servers from %2$d sources are ready to test.</string>
     <string name="iran_profile_invalid">Profile could not be imported: %1$s</string>
     <string name="iran_profile_input_hint">Paste a vless:// link with security=reality, pbk, sni and sid.</string>
     <string name="iran_engine_starting">Starting the alternative VPN engine…</string>
