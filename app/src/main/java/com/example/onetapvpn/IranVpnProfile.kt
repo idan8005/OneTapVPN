@@ -2,6 +2,7 @@ package com.example.onetapvpn
 
 import java.net.URI
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import org.json.JSONArray
@@ -60,7 +61,7 @@ internal object IranVpnProfileParser {
         }
 
         val uri = try {
-            URI(value)
+            URI(encodeUnsafeFragment(value))
         } catch (error: Exception) {
             throw IllegalArgumentException("The VLESS link is malformed.", error)
         }
@@ -223,6 +224,16 @@ internal object IranVpnProfileParser {
             candidateCount = nodes.size,
             sourceCount = sourceCount
         )
+    }
+
+    private fun encodeUnsafeFragment(value: String): String {
+        val hashIndex = value.indexOf('#')
+        if (hashIndex < 0) return value
+        val fragment = value.substring(hashIndex + 1)
+        val needsEncoding = fragment.any { it.isWhitespace() || it.code > 0x7E || it == '|' }
+        if (!needsEncoding) return value
+        val encoded = URLEncoder.encode(fragment, StandardCharsets.UTF_8.name()).replace("+", "%20")
+        return value.substring(0, hashIndex + 1) + encoded
     }
 
     private fun parseQuery(query: String): Map<String, String> {
