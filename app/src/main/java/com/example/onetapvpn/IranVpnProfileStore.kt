@@ -1,0 +1,315 @@
+package com.example.onetapvpn
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
+internal class IranVpnProfileStore(context: Context) {
+    private val preferences = context.applicationContext
+        .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+
+    fun save(profile: IranVpnProfile) {
+        check(
+            preferences.edit()
+                .putString(KEY_NAME, profile.name)
+                .putString(KEY_HOST, profile.serverHost)
+                .putInt(KEY_PORT, profile.serverPort)
+                .putString(KEY_CONFIG, profile.configJson)
+                .putInt(KEY_CANDIDATES, profile.candidateCount)
+                .putInt(KEY_SOURCES, profile.sourceCount)
+                .putLong(KEY_SAVED_AT, System.currentTimeMillis())
+                .commit()
+        ) { "Could not save the Iran VPN profile." }
+    }
+
+    fun saveDiscovery(autoProfile: IranVpnProfile, servers: List<IranVpnProfile>) {
+        val serverArray = JSONArray()
+        servers.forEach { server ->
+            serverArray.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.serverHost)
+                    .put("port", server.serverPort)
+                    .put("config", server.configJson)
+                    .put("candidates", server.candidateCount)
+                    .put("sources", server.sourceCount)
+            )
+        }
+        val editor = preferences.edit()
+            .putString(KEY_SERVERS, serverArray.toString())
+        editor.putString(KEY_NAME, autoProfile.name)
+            .putString(KEY_HOST, autoProfile.serverHost)
+            .putInt(KEY_PORT, autoProfile.serverPort)
+            .putString(KEY_CONFIG, autoProfile.configJson)
+            .putInt(KEY_CANDIDATES, autoProfile.candidateCount)
+            .putInt(KEY_SOURCES, autoProfile.sourceCount)
+            .putLong(KEY_SAVED_AT, System.currentTimeMillis())
+        check(editor.commit()) { "Could not save the discovered VPN servers." }
+    }
+
+    fun read(): IranVpnProfile? {
+        val config = preferences.getString(KEY_CONFIG, null)?.takeIf { it.isNotBlank() } ?: return null
+        val host = preferences.getString(KEY_HOST, null)?.takeIf { it.isNotBlank() } ?: return null
+        val name = preferences.getString(KEY_NAME, host).orEmpty()
+        val port = preferences.getInt(KEY_PORT, 0)
+        val candidates = preferences.getInt(KEY_CANDIDATES, 1)
+        val sources = preferences.getInt(KEY_SOURCES, 1)
+        return IranVpnProfile(name, host, port, config, candidates, sources)
+    }
+
+    fun readServers(): List<IranVpnProfile> {
+        val raw = preferences.getString(KEY_SERVERS, null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val config = item.optString("config").takeIf { it.isNotBlank() } ?: continue
+                    val host = item.optString("host").takeIf { it.isNotBlank() } ?: continue
+                    add(
+                        IranVpnProfile(
+                            name = item.optString("name", host),
+                            serverHost = host,
+                            serverPort = item.optInt("port"),
+                            configJson = config,
+                            candidateCount = item.optInt("candidates", 1),
+                            sourceCount = item.optInt("sources", 1),
+                            pingMs = item.optInt("pingMs", -1),
+                            speedMbps = item.optDouble("speedMbps", -1.0),
+                            healthStatus = item.optString("healthStatus", "unknown")
+                        )
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveServerHealth(profile: IranVpnProfile) {
+        val updatedServers = readServers().map { current ->
+            if (current.selectionKey == profile.selectionKey) {
+                current.copy(
+                    pingMs = profile.pingMs,
+                    speedMbps = profile.speedMbps,
+                    healthStatus = profile.healthStatus
+                )
+            } else {
+                current
+            }
+        }
+        val array = JSONArray()
+        updatedServers.forEach { server ->
+            array.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.serverHost)
+                    .put("port", server.serverPort)
+                    .put("config", server.configJson)
+                    .put("candidates", server.candidateCount)
+                    .put("sources", server.sourceCount)
+                    .put("pingMs", server.pingMs)
+                    .put("speedMbps", server.speedMbps)
+                    .put("healthStatus", server.healthStatus)
+            )
+        }
+        preferences.edit().putString(KEY_SERVERS, array.toString()).apply()
+    }
+
+    fun saveSelection(serverKey: String) {
+        preferences.edit().putString(KEY_SELECTED_SERVER, serverKey).apply()
+    }
+
+
+    fun savePremiumCatalog(autoProfile: IranVpnProfile, servers: List<IranVpnProfile>) {
+        val serverArray = JSONArray()
+        servers.forEach { server ->
+            serverArray.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.serverHost)
+                    .put("port", server.serverPort)
+                    .put("config", server.configJson)
+                    .put("candidates", server.candidateCount)
+                    .put("sources", server.sourceCount)
+                    .put("pingMs", server.pingMs)
+                    .put("speedMbps", server.speedMbps)
+                    .put("healthStatus", server.healthStatus)
+            )
+        }
+        check(
+            preferences.edit()
+                .putString(KEY_PREMIUM_NAME, autoProfile.name)
+                .putString(KEY_PREMIUM_HOST, autoProfile.serverHost)
+                .putInt(KEY_PREMIUM_PORT, autoProfile.serverPort)
+                .putString(KEY_PREMIUM_CONFIG, autoProfile.configJson)
+                .putInt(KEY_PREMIUM_CANDIDATES, autoProfile.candidateCount)
+                .putInt(KEY_PREMIUM_SOURCES, autoProfile.sourceCount)
+                .putString(KEY_PREMIUM_SERVERS, serverArray.toString())
+                .putLong(KEY_PREMIUM_SAVED_AT, System.currentTimeMillis())
+                .commit()
+        ) { "Could not save the Premium server catalogue." }
+    }
+
+    fun readPremiumProfile(): IranVpnProfile? {
+        val config = preferences.getString(KEY_PREMIUM_CONFIG, null)?.takeIf { it.isNotBlank() }
+            ?: return null
+        val host = preferences.getString(KEY_PREMIUM_HOST, null)?.takeIf { it.isNotBlank() }
+            ?: return null
+        return IranVpnProfile(
+            name = preferences.getString(KEY_PREMIUM_NAME, host).orEmpty(),
+            serverHost = host,
+            serverPort = preferences.getInt(KEY_PREMIUM_PORT, 0),
+            configJson = config,
+            candidateCount = preferences.getInt(KEY_PREMIUM_CANDIDATES, 0),
+            sourceCount = preferences.getInt(KEY_PREMIUM_SOURCES, 1)
+        )
+    }
+
+    fun readPremiumServers(): List<IranVpnProfile> {
+        val raw = preferences.getString(KEY_PREMIUM_SERVERS, null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val config = item.optString("config").takeIf { it.isNotBlank() } ?: continue
+                    val host = item.optString("host").takeIf { it.isNotBlank() } ?: continue
+                    add(
+                        IranVpnProfile(
+                            name = item.optString("name", host),
+                            serverHost = host,
+                            serverPort = item.optInt("port"),
+                            configJson = config,
+                            candidateCount = item.optInt("candidates", 1),
+                            sourceCount = item.optInt("sources", 1),
+                            pingMs = item.optInt("pingMs", -1),
+                            speedMbps = item.optDouble("speedMbps", -1.0),
+                            healthStatus = item.optString("healthStatus", "unknown")
+                        )
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun savePremiumServerHealth(profile: IranVpnProfile) {
+        val updated = readPremiumServers().map { current ->
+            if (current.selectionKey == profile.selectionKey) {
+                current.copy(
+                    pingMs = profile.pingMs,
+                    speedMbps = profile.speedMbps,
+                    healthStatus = profile.healthStatus
+                )
+            } else current
+        }
+        val array = JSONArray()
+        updated.forEach { server ->
+            array.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.serverHost)
+                    .put("port", server.serverPort)
+                    .put("config", server.configJson)
+                    .put("candidates", server.candidateCount)
+                    .put("sources", server.sourceCount)
+                    .put("pingMs", server.pingMs)
+                    .put("speedMbps", server.speedMbps)
+                    .put("healthStatus", server.healthStatus)
+            )
+        }
+        preferences.edit().putString(KEY_PREMIUM_SERVERS, array.toString()).apply()
+    }
+
+    fun clearPremiumCatalog() {
+        preferences.edit()
+            .remove(KEY_PREMIUM_NAME)
+            .remove(KEY_PREMIUM_HOST)
+            .remove(KEY_PREMIUM_PORT)
+            .remove(KEY_PREMIUM_CONFIG)
+            .remove(KEY_PREMIUM_CANDIDATES)
+            .remove(KEY_PREMIUM_SOURCES)
+            .remove(KEY_PREMIUM_SERVERS)
+            .remove(KEY_PREMIUM_SAVED_AT)
+            .apply()
+    }
+
+    fun saveActiveTier(tier: String) {
+        require(tier == TIER_FREE || tier == TIER_PREMIUM)
+        preferences.edit().putString(KEY_ACTIVE_TIER, tier).apply()
+    }
+
+    fun readActiveTier(): String =
+        preferences.getString(KEY_ACTIVE_TIER, TIER_FREE) ?: TIER_FREE
+
+    fun isPremiumCatalogStale(maxAgeMillis: Long = DEFAULT_PREMIUM_MAX_AGE_MS): Boolean {
+        val savedAt = preferences.getLong(KEY_PREMIUM_SAVED_AT, 0L)
+        return savedAt <= 0L || System.currentTimeMillis() - savedAt >= maxAgeMillis
+    }
+
+    fun readActiveProfile(): IranVpnProfile? =
+        if (readActiveTier() == TIER_PREMIUM) readPremiumProfile() else read()
+
+    fun readActiveServers(): List<IranVpnProfile> =
+        if (readActiveTier() == TIER_PREMIUM) readPremiumServers() else readServers()
+
+    fun saveActiveServerHealth(profile: IranVpnProfile) {
+        if (readActiveTier() == TIER_PREMIUM) savePremiumServerHealth(profile) else saveServerHealth(profile)
+    }
+
+    fun readSelectionKey(): String =
+        preferences.getString(KEY_SELECTED_SERVER, AUTO_SELECTION_KEY) ?: AUTO_SELECTION_KEY
+
+    fun selectedProfile(): IranVpnProfile? {
+        if (readSelectionKey() == AUTO_SELECTION_KEY) return read()
+        return readServers().firstOrNull { it.selectionKey == readSelectionKey() } ?: read()
+    }
+
+    fun isStale(maxAgeMillis: Long = DEFAULT_MAX_AGE_MS): Boolean {
+        val savedAt = preferences.getLong(KEY_SAVED_AT, 0L)
+        return savedAt <= 0L || System.currentTimeMillis() - savedAt >= maxAgeMillis
+    }
+
+    fun markServerHealthChecked() {
+        preferences.edit().putLong(KEY_HEALTH_CHECKED_AT, System.currentTimeMillis()).apply()
+    }
+
+    fun isServerHealthStale(maxAgeMillis: Long = DEFAULT_HEALTH_MAX_AGE_MS): Boolean {
+        val checkedAt = preferences.getLong(KEY_HEALTH_CHECKED_AT, 0L)
+        return checkedAt <= 0L || System.currentTimeMillis() - checkedAt >= maxAgeMillis
+    }
+
+    fun clear() {
+        preferences.edit().clear().apply()
+    }
+
+    internal companion object {
+        const val AUTO_SELECTION_KEY = "__auto_best_server__"
+        const val TIER_FREE = "free"
+        const val TIER_PREMIUM = "premium"
+        private const val PREFERENCES_NAME = "raahat_vpn_iran_profile"
+        private const val KEY_NAME = "name"
+        private const val KEY_HOST = "host"
+        private const val KEY_PORT = "port"
+        private const val KEY_CONFIG = "config"
+        private const val KEY_CANDIDATES = "candidates"
+        private const val KEY_SOURCES = "sources"
+        private const val KEY_SAVED_AT = "saved_at"
+        private const val KEY_SERVERS = "servers"
+        private const val KEY_SELECTED_SERVER = "selected_server"
+        private const val KEY_HEALTH_CHECKED_AT = "health_checked_at"
+        private const val KEY_ACTIVE_TIER = "active_tier"
+        private const val KEY_PREMIUM_NAME = "premium_name"
+        private const val KEY_PREMIUM_HOST = "premium_host"
+        private const val KEY_PREMIUM_PORT = "premium_port"
+        private const val KEY_PREMIUM_CONFIG = "premium_config"
+        private const val KEY_PREMIUM_CANDIDATES = "premium_candidates"
+        private const val KEY_PREMIUM_SOURCES = "premium_sources"
+        private const val KEY_PREMIUM_SERVERS = "premium_servers"
+        private const val KEY_PREMIUM_SAVED_AT = "premium_saved_at"
+        private const val DEFAULT_MAX_AGE_MS = 20 * 60 * 1000L
+        private const val DEFAULT_HEALTH_MAX_AGE_MS = 10 * 60 * 1000L
+        private const val DEFAULT_PREMIUM_MAX_AGE_MS = 10 * 60 * 1000L
+    }
+}
+
+internal val IranVpnProfile.selectionKey: String
+    get() = "${serverHost.lowercase()}:$serverPort:${configJson.hashCode()}"

@@ -1,0 +1,176 @@
+openapi: 3.1.0
+info:
+  title: Raahat VPN Hybrid Control Plane
+  version: 1.0.0
+  description: >
+    Shared HTTPS contract for Android, Windows and iOS clients. Public/free
+    discovery remains client-owned; managed Premium profiles are returned only
+    to a valid Premium account token. The Android client currently accepts
+    vless-reality only. WireGuard is not supported.
+servers:
+  - url: https://{host}
+    variables:
+      host:
+        default: api.example.invalid
+security: []
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status: { type: string, const: ok }
+                  service: { type: string, const: raahat-control-plane }
+  /api/v1/catalog:
+    get:
+      operationId: getCatalog
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User plan and managed Premium catalogue
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Catalog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Managed catalogue is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /admin/v1/servers:
+    put:
+      operationId: replacePremiumServers
+      security:
+        - adminBearer: []
+      description: Replaces the full managed Premium server catalogue atomically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [servers]
+              properties:
+                servers:
+                  type: array
+                  maxItems: 500
+                  items: { $ref: "#/components/schemas/ServerInput" }
+      responses:
+        "200":
+          description: Number of records saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [saved]
+                properties:
+                  saved: { type: integer, minimum: 0 }
+        "400":
+          description: Invalid server catalogue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/v1/tokens:
+    post:
+      operationId: issueAccessToken
+      security:
+        - adminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, plan, ttlSeconds]
+              properties:
+                userId: { type: string, minLength: 1, maxLength: 64 }
+                plan: { type: string, enum: [free, premium] }
+                ttlSeconds: { type: integer, minimum: 60, maximum: 31622400 }
+      responses:
+        "201":
+          description: Issued bearer token. Display only to the intended account owner.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accessToken, tokenType, expiresAt]
+                properties:
+                  accessToken: { type: string, format: password }
+                  tokenType: { type: string, const: Bearer }
+                  expiresAt: { type: string, format: date-time }
+        "400":
+          description: Invalid token request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC-signed Raahat token
+    adminBearer:
+      type: http
+      scheme: bearer
+      description: Administrator secret; server-side only, never embed in apps.
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired access token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Catalog:
+      type: object
+      required: [plan, generatedAt, publicDiscovery, premiumServers]
+      properties:
+        plan: { type: string, enum: [free, premium] }
+        generatedAt: { type: string, format: date-time }
+        publicDiscovery: { type: boolean }
+        premiumServers:
+          type: array
+          description: Empty for free accounts; enabled managed nodes for Premium accounts.
+          items: { $ref: "#/components/schemas/Server" }
+    ServerInput:
+      allOf:
+        - $ref: "#/components/schemas/Server"
+      required: [config]
+    Server:
+      type: object
+      required: [id, name, country, region, host, port, protocol, config, enabled]
+      properties:
+        id: { type: string, pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$" }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        country: { type: string, minLength: 1, maxLength: 80 }
+        region: { type: string, minLength: 1, maxLength: 80 }
+        host: { type: string, maxLength: 253, description: IP address or DNS hostname only }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        protocol: { type: string, enum: [vless-reality, openvpn] }
+        config: { type: string, minLength: 1, maxLength: 65536, format: password }
+        enabled: { type: boolean }
+        maxUsers: { type: integer, minimum: 0, maximum: 1000000 }
+        priority: { type: integer }
+        updatedAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }

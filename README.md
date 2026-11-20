@@ -1,8 +1,6 @@
 # راحت وی‌پی‌ان | Raahat VPN
 
-A Persian-first Android VPN client that discovers free public VPN Gate relays,
-ranks candidates using the directory's reported ping, throughput, uptime and
-active sessions, and connects with OpenVPN. **WireGuard is not used.**
+A Persian-first Android VPN client with two connection engines: OpenVPN for public VPN Gate relays, and sing-box for automatically discovered VLESS + REALITY servers. **WireGuard is not used.**
 
 ## Features
 
@@ -18,6 +16,40 @@ active sessions, and connects with OpenVPN. **WireGuard is not used.**
 - **In-app update:** checks the latest GitHub Release, downloads the APK,
   verifies its SHA-256 checksum, and opens the Android package installer.
 - **Persian and English UI.**
+- **Automatic Iran server discovery:** checks three public feeds, filters VLESS + REALITY TCP/RAW profiles and builds an automatic sing-box URL-test group.
+- **Automatic candidate selection:** sing-box tests candidates through the phone's current network and selects the fastest responsive node, then re-tests periodically.
+
+## Automatic Iran connection
+
+The Iran mode requires no manually pasted server link. On app launch, it checks
+several public feeds and their CDN mirrors, extracts VLESS + REALITY profiles,
+filters malformed or unsupported entries, removes duplicates and keeps up to
+100 candidates. The feed sources currently include:
+
+- `mehrtat/vless-collector` (plain VLESS feed)
+- `0xRadikal/Free-v2ray-Configs` (verified public configurations)
+- `morpheusadam/v2ray-config` (best base64 bundle)
+- `Au1rxx/free-vpn-subscriptions` (base64 subscription feed)
+
+The app builds a sing-box `urltest` group of up to 30 candidates. Health checks are performed by the
+sing-box engine through the phone's current network every 30 seconds, not by trusting latency
+values reported by a remote list. The selected node is re-tested periodically;
+when the network changes or a candidate stops responding, sing-box can select
+another candidate. The candidate list is refreshed after 20 minutes, or
+manually from **Find and refresh servers**.
+
+Tap the main **Connect** button to use automatic Iran mode. Android's VPN
+permission is required the first time. **Use classic VPN Gate servers** remains
+available as a separate fallback. Full-tunnel and selected-app routing are
+supported by both modes.
+
+Public feeds and free nodes are untrusted and can disappear at any time. The
+feed maintainers and server operators are independent third parties; Raahat VPN
+does not operate or audit their infrastructure. A node can pass a connection
+test and still be slow, unstable or unsafe. Do not use public relays for
+banking, passwords, private work or other sensitive traffic. Automatic
+discovery does not guarantee that any particular node will be reachable from
+every Iranian carrier or Wi-Fi provider.
 
 ## Important: free volunteer servers
 
@@ -40,8 +72,8 @@ https://www.vpngate.net/en/about_abuse.aspx
 4. In selected-app mode, choose at least one app.
 5. Tap **اتصال** and approve Android's VPN permission prompt.
 
-The first server list refresh requires internet access. If the first server is
-unreachable, the app automatically tries another ranked candidate.
+Server discovery requires access to at least one public feed or CDN mirror. The
+app attempts more than one source and caches the last successful candidate set.
 
 Android requires the user to approve VPN access on first connection. Android
 also controls the final APK installation confirmation during an update; a
@@ -49,7 +81,7 @@ regular app cannot silently replace itself.
 
 ## Build from source
 
-Requirements: JDK 17, Android SDK platform 34 and Build Tools 34.0.0.
+Requirements: JDK 17, Android SDK platform 34 and Build Tools 34.0.0. Gradle also resolves the sing-box Android library from JitPack.
 
 The OpenVPN engine is included as a pinned Git submodule:
 
@@ -81,7 +113,7 @@ To publish a version for the in-app updater:
    release endpoint. The current repository is private, so normal app
    installations cannot read its GitHub Releases API without authentication.
 2. Configure the four Release signing secrets.
-3. Push a version tag such as `v1.4.0`.
+3. Push a version tag such as `v1.5.0`.
 4. The workflow builds, signs, verifies and publishes
    `raahat-vpn.apk` and `raahat-vpn.apk.sha256` to the GitHub Release.
 
@@ -94,6 +126,10 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 
 - `app/`: application UI, server discovery, routing choices and updater.
 - `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
+- `IranVpnService.kt`: Android VPN service for the optional sing-box engine.
+- `IranVpnProfile.kt`: strict VLESS + REALITY parser and sing-box URL-test builder.
+- `IranServerDiscovery.kt`: multi-source public feed discovery with CDN fallback and bounded downloads.
+- `ServerHealthScorer.kt`: quality-based server ranking using throughput, latency, probe reliability and jitter.
 - `VpnGateApi.kt`: public directory fetch and server ranking.
 - `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
 - `VpnViewModel.kt`: connection state and automatic server failover.
@@ -101,8 +137,7 @@ Raahat VPN in Android settings and must confirm the OS installer prompt.
 
 ## Licensing
 
-The bundled OpenVPN engine is GPL-3.0. This application and its redistribution
-must preserve the upstream notices and comply with the GPLv3 obligations.
+The bundled OpenVPN engine and the sing-box libbox engine are GPL-3.0. This application and its redistribution must preserve the upstream notices and comply with the GPLv3 obligations.
 See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Physical device testing

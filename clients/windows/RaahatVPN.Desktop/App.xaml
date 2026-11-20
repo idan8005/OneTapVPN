@@ -1,0 +1,10 @@
+<Application x:Class="RaahatVPN.Desktop.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="PageBrush" Color="#0B1220"/>
+    <SolidColorBrush x:Key="CardBrush" Color="#132039"/>
+    <SolidColorBrush x:Key="BorderBrushSoft" Color="#2B405C"/>
+    <SolidColorBrush x:Key="MutedBrush" Color="#A4B8D3"/>
+    <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#F5F7FB"/><Setter Property="FontFamily" Value="Segoe UI"/></Style>
+    <Style TargetType="Button"><Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#1E8C70"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="18,10"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Margin" Value="4"/></Style>
+  </Application.Resources>
+</Application>

@@ -18,6 +18,16 @@ source-code, attribution, license-notice, and corresponding-source
 requirements. Preserve the upstream copyright and license notices in the
 submodule.
 
+## sing-box Android engine (libbox)
+
+The optional Iran compatibility mode uses the Android `libbox` library from
+[singbox-android/libbox](https://github.com/singbox-android/libbox), built on
+the [SagerNet/sing-box](https://github.com/SagerNet/sing-box) core. Raahat VPN
+resolves version `1.14.4` from JitPack. The library is distributed under
+**GNU General Public License v3 (GPL-3.0)**. Its source, license and upstream
+notices must be preserved when redistributing the application. The library
+is fetched as a build dependency; it is not vendored into this repository.
+
 ## VPN Gate directory
 
 The application reads the public volunteer server directory at

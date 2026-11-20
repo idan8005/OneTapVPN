@@ -2,7 +2,7 @@ name: Build, test and release Raahat VPN
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature/iran-singbox-mode]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -26,11 +26,36 @@ jobs:
     name: Test and build Android APKs
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    outputs:
+      version_name: ${{ steps.app_version.outputs.version }}
     steps:
-      - name: Checkout source and OpenVPN submodule
+      - name: Checkout application source
         uses: actions/checkout@v5
-        with:
-          submodules: recursive
+
+      - name: Determine app update version
+        id: app_version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BASE_VERSION="$(sed -n 's/^val baseVersionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            LATEST_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)"
+            LATEST_VERSION="${LATEST_TAG#v}"
+            if [[ "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$(printf '%s\n' "$BASE_VERSION" "$LATEST_VERSION" | sort -V | tail -n 1)" == "$LATEST_VERSION" ]]; then
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
+              VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            else
+              VERSION="$BASE_VERSION"
+            fi
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "RAAHAT_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -90,23 +115,21 @@ jobs:
             echo "Stable release signing secrets are not configured. Debug APK is available; signed releases are disabled." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-
           KEYSTORE_PATH="$RUNNER_TEMP/raahatvpn-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
-
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "configured=true" >> "$GITHUB_OUTPUT"
           echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Require release signing for version tags
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Require release signing for published update channels
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
         env:
           SIGNING_CONFIGURED: ${{ steps.release_signing.outputs.configured }}
         run: |
           test "$SIGNING_CONFIGURED" = "true" || {
-            echo "A stable release signing key is required for tagged releases." >&2
+            echo "A stable release signing key is required to publish an in-app update." >&2
             exit 1
           }
 
@@ -126,6 +149,7 @@ jobs:
           APK="app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$APK" | tee release-signature.txt
+          grep -qi "Signer #1 certificate SHA-256 digest: 152de76e27a36f9309a0f5391fa9735713abf5498eac2d991138708a67d67d2f" release-signature.txt
           cp "$APK" raahat-vpn.apk
           sha256sum raahat-vpn.apk > raahat-vpn.apk.sha256
           echo "Signed Release APK verified successfully." >> "$GITHUB_STEP_SUMMARY"
@@ -165,10 +189,88 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_emulator_test
         run: echo "The emulator smoke test does not replace testing on a physical Android phone."
 
+  backend:
+    name: Test Hybrid control plane
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.mod
+
+      - name: Format Go sources
+        working-directory: backend
+        run: gofmt -w .
+
+      - name: Verify Go formatting
+        working-directory: backend
+        run: test -z "$(gofmt -l .)"
+
+      - name: Run backend tests with race detector
+        working-directory: backend
+        run: go test -race -count=1 ./...
+
+      - name: Run Go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Build backend binary
+        working-directory: backend
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/raahat-control-plane .
+
+  windows_client:
+    name: Build Windows desktop client
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up .NET 10 LTS
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore Windows client
+        run: dotnet restore clients/windows/RaahatVPN.Desktop/RaahatVPN.Desktop.csproj
+
+      - name: Build Windows client
+        run: dotnet build clients/windows/RaahatVPN.Desktop/RaahatVPN.Desktop.csproj --configuration Release --no-restore
+
+      - name: Publish self-contained Windows x64 client
+        run: dotnet publish clients/windows/RaahatVPN.Desktop/RaahatVPN.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true --output publish
+
+      - name: Upload Windows client build
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-Windows-x64
+          path: publish/
+          if-no-files-found: error
+          retention-days: 30
+
+  ios_core:
+    name: Test shared iOS core
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Show Swift toolchain
+        run: swift --version
+
+      - name: Run iOS core tests
+        run: swift test --package-path clients/ios
+
   publish_release:
     name: Publish versioned GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+    needs: [build, backend, windows_client, ios_core]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -179,11 +281,27 @@ jobs:
           name: RaahatVPN-Signed-Release
           path: release
 
+      - name: Determine release version
+        id: release_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="v${{ needs.build.outputs.version_name }}"
+          fi
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Publish APK and checksum
         uses: softprops/action-gh-release@v2
         with:
-          name: Raahat VPN ${{ github.ref_name }}
+          tag_name: ${{ steps.release_version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Raahat VPN ${{ steps.release_version.outputs.tag }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             release/raahat-vpn.apk
             release/raahat-vpn.apk.sha256

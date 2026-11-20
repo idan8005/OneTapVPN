@@ -3,6 +3,21 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val baseVersionName = "1.6.5"
+val taggedVersionName = providers.environmentVariable("GITHUB_REF_NAME").orNull
+    ?.removePrefix("v")
+    ?.takeIf { Regex("^\\d+\\.\\d+\\.\\d+$").matches(it) }
+val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+val resolvedVersionName = providers.environmentVariable("RAAHAT_VERSION_NAME").orNull
+    ?: taggedVersionName
+    ?: baseVersionName
+val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(14) ?: 14
+val hybridApiBaseUrl = providers.environmentVariable("RAAHAT_API_BASE_URL").orNull.orEmpty()
+    .trim().trimEnd('/')
+val escapedHybridApiBaseUrl = hybridApiBaseUrl
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 val releaseStoreFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseStorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
@@ -22,9 +37,10 @@ android {
         applicationId = "com.example.onetapvpn"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "RAAHAT_API_BASE_URL", "\"$escapedHybridApiBaseUrl\"")
     }
 
     signingConfigs {
@@ -68,16 +84,15 @@ android {
 }
 
 dependencies {
-    implementation(project(":vpnLib"))
+    implementation("com.github.singbox-android:libbox:1.14.4")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
