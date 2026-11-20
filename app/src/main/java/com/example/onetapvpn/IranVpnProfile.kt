@@ -236,6 +236,6 @@ internal object IranVpnProfileParser {
     const val URL_TEST_ENDPOINT = "https://cp.cloudflare.com/generate_204"
     private val SERVER_NAME_PATTERN = Regex("^[A-Za-z0-9.-]{1,253}$")
     private val REALITY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,64}$")
-    private val SHORT_ID_PATTERN = Regex("^[A-Fa-f0-9]{0,8}$")
+    private val SHORT_ID_PATTERN = Regex("^[A-Fa-f0-9]{0,16}$")
     private val FINGERPRINT_PATTERN = Regex("^[A-Za-z0-9_-]{2,24}$")
 }
