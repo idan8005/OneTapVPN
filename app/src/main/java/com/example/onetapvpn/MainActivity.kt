@@ -812,7 +812,7 @@ class MainActivity : AppCompatActivity() {
     private fun scanCachedServers() {
         val profile = currentProfile()
         if (profile == null || serverProfiles.isEmpty()) {
-            refreshServers()
+            refreshCurrentCatalog()
             return
         }
         startServerScan(profile)
@@ -956,7 +956,9 @@ class MainActivity : AppCompatActivity() {
                         getString(R.string.hybrid_premium_synced, catalog.servers.size),
                         Toast.LENGTH_LONG
                     ).show()
-                    if (switchToPremiumOnSuccess) activatePremiumCatalog()
+                    if (switchToPremiumOnSuccess || activeTier == IranVpnProfileStore.TIER_PREMIUM) {
+                        activatePremiumCatalog()
+                    }
                 }
             } catch (error: Exception) {
                 serverNotice = getString(
