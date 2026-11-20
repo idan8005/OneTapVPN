@@ -15,7 +15,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
-    private val viewModel: VpnViewModel by viewModels()
+    private lateinit var viewModel: VpnViewModel
 
     private lateinit var statusText: TextView
     private lateinit var detailText: TextView
@@ -78,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         window.navigationBarColor = Color.rgb(9, 16, 31)
         window.decorView.systemUiVisibility = 0
 
+        viewModel = ViewModelProvider(this)[VpnViewModel::class.java]
         setContentView(createContent())
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
