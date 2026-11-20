@@ -5,10 +5,15 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 
 internal class IranVpnManager(private val context: Context) {
-    fun start(profile: IranVpnProfile, selectedPackages: Set<String>): Boolean = runCatching {
+    fun start(
+        profile: IranVpnProfile,
+        selectedPackages: Set<String>,
+        selectedOutboundTag: String
+    ): Boolean = runCatching {
         val intent = Intent(context, IranVpnService::class.java).apply {
             putExtra(EXTRA_CONFIG, profile.configJson)
             putStringArrayListExtra(EXTRA_PACKAGES, ArrayList(selectedPackages))
+            putExtra(EXTRA_SELECTED_OUTBOUND, selectedOutboundTag)
         }
         ContextCompat.startForegroundService(context, intent)
     }.isSuccess
@@ -29,6 +34,7 @@ internal class IranVpnManager(private val context: Context) {
     private companion object {
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
+        const val EXTRA_SELECTED_OUTBOUND = "selected_outbound_tag"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
     }
 }
