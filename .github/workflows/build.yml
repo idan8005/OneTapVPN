@@ -90,12 +90,10 @@ jobs:
             echo "Stable release signing secrets are not configured. Debug APK is available; signed releases are disabled." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-
           KEYSTORE_PATH="$RUNNER_TEMP/raahatvpn-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
-
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "configured=true" >> "$GITHUB_OUTPUT"
           echo "Stable release signing key validated." >> "$GITHUB_STEP_SUMMARY"
@@ -164,40 +162,6 @@ jobs:
       - name: Report optional emulator test result
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_emulator_test
         run: echo "The emulator smoke test does not replace testing on a physical Android phone."
-
-  publish_public_update:
-    name: Publish APK to public update channel
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download signed APK and checksum
-        uses: actions/download-artifact@v4
-        with:
-          name: RaahatVPN-Signed-Release
-          path: release
-
-      - name: Publish current version to the public updates branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          git clone --depth 1 --branch updates "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" update-site
-          mkdir -p update-site/public
-          install -m 0644 release/raahat-vpn.apk update-site/public/raahat-vpn.apk
-          install -m 0644 release/raahat-vpn.apk.sha256 update-site/public/raahat-vpn.apk.sha256
-          VERSION="${RELEASE_TAG#v}"
-          CHECKSUM="$(cut -d' ' -f1 release/raahat-vpn.apk.sha256)"
-          printf '{"version":"%s","apk_url":"https://raahat-vpn-updates.onrender.com/raahat-vpn.apk","sha256":"%s"}\n' "$VERSION" "$CHECKSUM" > update-site/public/latest.json
-          cd update-site
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/raahat-vpn.apk public/raahat-vpn.apk.sha256 public/latest.json
-          git commit -m "Publish Raahat VPN ${RELEASE_TAG} update"
-          git push origin updates
 
   publish_release:
     name: Publish versioned GitHub Release
