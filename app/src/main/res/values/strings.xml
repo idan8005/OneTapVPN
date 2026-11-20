@@ -17,6 +17,12 @@
     <string name="profile_description">On the first connection, OneTap VPN attempts to create a free WARP profile automatically. You can also import your own WireGuard profile.</string>
     <string name="import_file">Import WireGuard file</string>
     <string name="paste_clipboard">Paste config from clipboard</string>
+    <string name="export_profile">Export WireGuard profile</string>
+    <string name="export_profile_warning">The exported file contains your private key. Keep it private and delete it after importing on the new installation.</string>
+    <string name="profile_exported">Profile exported. Keep the file secure; it contains your VPN private key.</string>
+    <string name="no_profile_to_export">No saved profile is available to export.</string>
+    <string name="profile_export_failed">Could not create the profile file.</string>
+    <string name="profile_export_failed_detail">Profile export failed: %1$s</string>
     <string name="warp_note">WARP registration uses an unofficial Cloudflare endpoint and may stop working if Cloudflare changes it. WARP does not provide manual country selection or guaranteed unlimited service.</string>
     <string name="clipboard_empty">The clipboard is empty.</string>
     <string name="disconnect_before_import">Disconnect the VPN before replacing the active profile.</string>
