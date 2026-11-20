@@ -138,7 +138,7 @@ internal class IranServerDiscovery {
         const val CONNECT_TIMEOUT_MS = 5_000
         const val READ_TIMEOUT_MS = 8_000
         const val MAX_SOURCE_BYTES = 1_500_000
-                const val MAX_INTERLEAVED_CANDIDATES = 400
+        const val MAX_INTERLEAVED_CANDIDATES = 400
         const val MAX_SOURCE_LINES = 20_000
         const val MAX_CANDIDATE_LINES_PER_SOURCE = 700
         val BASE64_PATTERN = Regex("^[A-Za-z0-9+/=_-]+$")
