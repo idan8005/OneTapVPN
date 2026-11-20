@@ -35,7 +35,7 @@ internal class VpnGateApi {
             .sortedWith(
                 compareByDescending<VpnServer> { ServerRanker.score(it) }
                     .thenBy { it.pingMs }
-                    .thenByDescending { it.speedBytesPerSecond }
+                    .thenByDescending { it.speedBitsPerSecond }
             )
         if (servers.isEmpty()) throw IOException("No usable OpenVPN servers were returned.")
         return servers
@@ -71,7 +71,7 @@ internal class VpnGateApi {
             ip = ip,
             score = fields.getOrNull(2)?.trim()?.toLongOrNull() ?: 0L,
             pingMs = ping,
-            speedBytesPerSecond = speed,
+            speedBitsPerSecond = speed,
             country = fields.getOrNull(5)?.trim().orEmpty().ifBlank { "Unknown" },
             countryCode = fields.getOrNull(6)?.trim().orEmpty(),
             activeSessions = sessions,
