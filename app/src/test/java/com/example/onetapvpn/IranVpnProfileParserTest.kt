@@ -41,6 +41,46 @@ class IranVpnProfileParserTest {
     }
 
     @Test
+    fun buildsAutomaticUrlTestGroupFromMultiplePublicNodes() {
+        val secondLink = validLink.replace("example.com:443", "another.example.net:8443")
+            .replace("www.example.com", "www.another.example.net")
+            .replace("#Iran", "#Iran2")
+
+        val profile = IranVpnProfileParser.parseAutomatic(
+            listOf(validLink, secondLink, validLink),
+            sourceCount = 3
+        )
+        val config = JSONObject(profile.configJson)
+        val outbounds = config.getJSONArray("outbounds")
+        val urlTest = outbounds.getJSONObject(3)
+
+        assertEquals(2, profile.candidateCount)
+        assertEquals(3, profile.sourceCount)
+        assertEquals("auto", config.getJSONObject("route").getString("final"))
+        assertEquals("urltest", urlTest.getString("type"))
+        assertEquals(2, urlTest.getJSONArray("outbounds").length())
+        assertEquals(IranVpnProfileParser.URL_TEST_ENDPOINT, urlTest.getString("url"))
+        assertEquals("90s", urlTest.getString("interval"))
+    }
+
+    @Test
+    fun rejectsAutomaticFeedWithoutCompatibleRealityNodes() {
+        assertThrows(IllegalArgumentException::class.java) {
+            IranVpnProfileParser.parseAutomatic(
+                listOf("vmess://not-a-vless-node", "vless://broken"),
+                sourceCount = 2
+            )
+        }
+    }
+
+    @Test
+    fun acceptsRawTcpRealityTransport() {
+        val rawLink = validLink.replace("type=tcp", "type=raw")
+        val profile = IranVpnProfileParser.parse(rawLink)
+        assertEquals("example.com", profile.serverHost)
+    }
+
+    @Test
     fun rejectsUnsupportedWebSocketTransport() {
         val invalid = validLink.replace("type=tcp", "type=ws")
         assertThrows(IllegalArgumentException::class.java) {
