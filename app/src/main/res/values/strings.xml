@@ -2,14 +2,14 @@
 <resources>
     <string name="app_name">Raahat VPN</string>
     <string name="app_tagline">Free servers · One-tap connection</string>
-    <string name="connection_title">AUTOMATIC VPN CONNECTION</string>
+    <string name="connection_title">VPN CONNECTION</string>
     <string name="status_scanning">Searching for free servers…</string>
     <string name="status_ready">Ready to connect</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Connection failed</string>
-    <string name="connect">Auto connect</string>
+    <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="connection_help">Tap Connect. Android will ask for VPN permission the first time.</string>
     <string name="server_summary_empty">Finding the fastest available server…</string>
