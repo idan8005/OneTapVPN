@@ -100,6 +100,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             }.onFailure { error ->
                 Log.e(TAG, "Could not start sing-box Iran mode", error)
                 publishStatus(
+                    IranVpnContract.STATE_ERROR,
                     getString(
                         R.string.iran_engine_error,
                         error.localizedMessage ?: error.javaClass.simpleName
