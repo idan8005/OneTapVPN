@@ -3,10 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val baseVersionName = "1.6.4"
+val baseVersionName = "1.6.5"
+val taggedVersionName = providers.environmentVariable("GITHUB_REF_NAME").orNull
+    ?.removePrefix("v")
+    ?.takeIf { Regex("^\\d+\\.\\d+\\.\\d+$").matches(it) }
 val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
-val resolvedVersionName = ciBuildNumber?.let { "$baseVersionName.$it" } ?: baseVersionName
-val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(13) ?: 13
+val resolvedVersionName = taggedVersionName ?: baseVersionName
+val resolvedVersionCode = ciBuildNumber?.coerceAtLeast(14) ?: 14
 
 val releaseStoreFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseStorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
