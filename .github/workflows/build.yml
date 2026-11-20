@@ -189,10 +189,40 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_emulator_test
         run: echo "The emulator smoke test does not replace testing on a physical Android phone."
 
+  backend:
+    name: Test Hybrid control plane
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up Go 1.23
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.mod
+
+      - name: Check Go formatting
+        working-directory: backend
+        run: test -z "$(gofmt -l .)"
+
+      - name: Run backend tests with race detector
+        working-directory: backend
+        run: go test -race -count=1 ./...
+
+      - name: Run Go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Build backend binary
+        working-directory: backend
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/raahat-control-plane .
+
   publish_release:
     name: Publish versioned GitHub Release
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/feature/iran-singbox-mode'))
-    needs: build
+    needs: [build, backend]
     runs-on: ubuntu-latest
     permissions:
       contents: write
