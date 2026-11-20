@@ -95,7 +95,7 @@
     <string name="server_choose_button">انتخاب سرور</string>
     <string name="server_refresh_button">تازه‌سازی فهرست</string>
     <string name="server_auto_option">بهترین سرور (انتخاب خودکار)</string>
-    <string name="server_auto_selected">سرور انتخاب‌شده: بهترین سرور (خودکار). موتور VPN سرورها را آزمایش می‌کند و گزینهٔ پاسخ‌گوتر را انتخاب می‌کند.</string>
+    <string name="server_auto_selected">سرور انتخاب‌شده: بهترین سرور (خودکار). موتور VPN از بین %1$d گزینهٔ موجود، سرور پاسخ‌گوتر را انتخاب می‌کند.</string>
     <string name="server_manual_selected">انتخاب دستی: %1$s · %2$s:%3$d</string>
     <string name="server_picker_item">%1$s — %2$s:%3$d</string>
     <string name="server_list_count">فهرست فعلی: %1$d سرور از %2$d منبع</string>
