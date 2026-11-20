@@ -355,7 +355,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         val server = state.currentServer
-        serverText.text = if (server == null) {
+        serverText.text = if (server == null && state.status == VpnStatus.CONNECTED) {
+            getString(R.string.server_already_active)
+        } else if (server == null) {
             getString(R.string.server_summary_empty)
         } else {
             getString(
