@@ -60,4 +60,5 @@
     <string name="routing_help">Choose which apps should use the VPN tunnel.</string>
     <string name="update_initial">Check GitHub Releases for a newer Raahat VPN version.</string>
     <string name="server_already_active">An existing VPN connection is active.</string>
+    <string name="connected_existing_session">Restored the existing VPN connection.</string>
 </resources>
