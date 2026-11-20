@@ -1,6 +1,6 @@
 # Raahat VPN 1.3.0 — Android device test plan
 
-This checklist is for a physical Android phone. GitHub Actions can compile, lint, run JVM tests, and launch the UI on an emulator, but it cannot prove that a real phone, carrier, Wi-Fi network, DNS resolver, and WARP registration endpoint complete a working tunnel.
+This checklist is for a physical Android phone. GitHub Actions can compile, lint, run JVM tests, and (when manually requested) launch the UI on an emulator, but it cannot prove that a real phone, carrier, Wi-Fi network, DNS resolver, and WARP registration endpoint complete a working tunnel.
 
 ## First install and first connection
 
