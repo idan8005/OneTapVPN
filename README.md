@@ -27,8 +27,9 @@ Every push to `main` or `master` runs:
 1. Android Lint.
 2. JVM unit tests.
 3. Debug APK build and verification.
-4. Android emulator UI smoke test of the one-tap home screen and optional advanced profile panel.
-5. If the four release-signing Actions secrets exist, signed Release APK build and signature verification.
+4. If the four release-signing Actions secrets exist, signed Release APK build and signature verification.
+
+The Android emulator UI smoke test (one-tap home screen and optional advanced profile panel) is opt-in and non-blocking: it runs only when the workflow is started manually (**Run workflow**) with `run_emulator_test` enabled, and its result does not block APK publication.
 
 The workflow publishes `RaahatVPN-Debug-APK` and, when signing secrets are configured, `RaahatVPN-Release-1.3.0` with the signed APK, SHA-256 checksum, and signing verification output.
 
@@ -50,7 +51,7 @@ Profiles are encrypted with AES-GCM using an Android Keystore key. App backup an
 
 ## Physical-device validation
 
-GitHub Actions can compile, lint, run JVM tests, and launch the UI on an emulator. This does not prove that a real phone, carrier/Wi-Fi network, DNS resolver, and VPN handshake work correctly. Follow [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) on a physical Android phone and share only redacted diagnostics.
+GitHub Actions can compile, lint, run JVM tests, and (when manually requested) launch the UI on an emulator. This does not prove that a real phone, carrier/Wi-Fi network, DNS resolver, and VPN handshake work correctly. Follow [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) on a physical Android phone and share only redacted diagnostics.
 
 ## Important Android limitation
 
