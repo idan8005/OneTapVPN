@@ -1,65 +1,69 @@
-# Raahat VPN 1.3.0 — Android device test plan
+# برنامهٔ آزمایش راحت وی‌پی‌ان 1.4.0
 
-This checklist is for a physical Android phone. GitHub Actions can compile, lint, run JVM tests, and launch the UI on an emulator, but it cannot prove that a real phone, carrier, Wi-Fi network, DNS resolver, and WARP registration endpoint complete a working tunnel.
+این فهرست برای آزمایش روی یک گوشی واقعی Android است. CI می‌تواند ساخت و تست رابط را انجام دهد، اما اتصال واقعی به اینترنت و سرور داوطلبانه را تضمین نمی‌کند.
 
-## First install and first connection
+## نصب و اتصال
 
-1. Configure the four Actions secrets listed in `RELEASE_SIGNING_FA.md`.
-2. Run the latest GitHub Actions workflow and download `RaahatVPN-Release-1.3.0`.
-3. Verify the APK signature and checksum from the artifact.
-4. Install it on an Android phone running Android 7.0 or later.
-5. Open **راحت وی‌پی‌ان** and tap **اتصال**.
-6. On the first connection, approve Android's VPN permission prompt. The app then attempts to create and save a WARP profile automatically.
+1. از GitHub Actions فایل Debug را دریافت کنید، یا پس از تنظیم کلید ثابت یک Release امضاشده بسازید.
+2. APK را روی گوشی Android 7 یا جدیدتر نصب کنید.
+3. برنامهٔ «راحت وی‌پی‌ان» را باز کنید.
+4. فهرست سرورها را به‌روزرسانی کنید و تعداد گزینه‌های پیدا شده را ببینید.
+5. «فول‌تانل» را انتخاب کنید و اتصال را آزمایش کنید.
+6. مجوز VPN اندروید را در اولین اتصال تأیید کنید.
+7. یک سایت HTTPS را باز کنید و IP عمومی را بررسی کنید.
+8. اتصال را قطع کنید و مطمئن شوید اینترنت عادی برمی‌گردد.
 
-The Android VPN prompt is a required operating-system security confirmation and cannot be skipped by the app. After the user approves it once, subsequent connection attempts use the single Connect button.
+## آزمایش برنامه‌های انتخابی
 
-## Important one-time migration
+1. VPN را قطع کنید.
+2. حالت «برنامه‌های انتخابی» را بزنید.
+3. یک یا دو برنامه را انتخاب و ذخیره کنید.
+4. اتصال را برقرار کنید.
+5. ترافیک برنامه‌های انتخاب‌شده را بررسی کنید.
+6. برنامه‌ای که انتخاب نشده است باید خارج از تونل بماند.
+7. VPN را قطع و برنامه را ببندید/باز کنید؛ فهرست انتخاب باید حفظ شده باشد.
 
-The older 1.1.0 APK was signed with a temporary GitHub Actions debug certificate. Android will reject an in-place update from that APK to the fixed-key Release APK because the signatures differ.
+## آزمایش جابه‌جایی سرور
 
-- If 1.1.0 is not installed, install the signed Release APK directly.
-- If 1.1.0 is installed and the original WireGuard profile is available, keep a copy of that profile, uninstall the old Debug app, install Release, and import the profile again under Advanced settings.
-- If 1.1.0 is installed and the only copy of the profile is inside that app, do not uninstall it yet. The old build does not contain the profile-export feature, and uninstalling clears app-private data. Contact the developer before removing it.
+- سروری را انتخاب کنید که در فهرست پینگ کم دارد و اتصال را شروع کنید.
+- بررسی کنید پیام تلاش و وضعیت اتصال به‌روزرسانی شود.
+- در صورت رد اتصال یا timeout باید برنامه سرور بعدی را امتحان کند.
+- پس از اتصال، قطع عمدی یا تغییر شبکه را آزمایش کنید.
+- انتظار نداشته باشید همه سرورهای VPN Gate همیشه در دسترس باشند.
 
-Starting with the first fixed-key Release, later Release APKs signed with this same keystore can update in place without uninstalling.
+## آزمایش به‌روزرسانی
 
-## Manual test cases
+به‌روزرسانی داخل برنامه فقط زمانی قابل آزمایش است که نسخه‌ای با tag جدید در GitHub Release عمومی منتشر شده باشد (یا یک endpoint عمومی جایگزین تنظیم شده باشد).
 
-| Test | Procedure | Expected result |
-|---|---|---|
-| Clean install | Install Release APK | Android shows the app as راحت وی‌پی‌ان with the new shield/lock logo |
-| Simple home screen | Open the app | Connect button is the main action; manual profile tools are hidden |
-| First permission | Tap Connect on a fresh install | Android shows its VPN consent dialog |
-| Permission cancel | Cancel the Android dialog | App stays disconnected and explains permission was not granted |
-| First connection | Approve the system prompt | App attempts automatic WARP profile provisioning and starts the tunnel if provisioning succeeds |
-| Reconnect | Disconnect, then tap Connect again | Reuses the saved profile; no profile import or setup is needed |
-| Advanced settings | Open Advanced settings (optional) | Manual WireGuard import, paste, and export controls appear |
-| Import profile | Import a valid WireGuard `.conf` | App validates and stores the profile encrypted |
-| Data path | With a valid server, open a normal HTTPS page and a DNS test page | Traffic passes through the configured tunnel |
-| Disconnect | Tap Disconnect | Tunnel stops and normal network access returns |
-| Relaunch | Close/reopen app while connected | App reads the backend state and displays the correct status |
-| Export profile | Use Export WireGuard profile in Advanced settings | A `.conf` file is saved; treat it as a secret because it includes the private key |
-| Update | Install a later APK signed by the same Release key using the Android package installer | Update succeeds without uninstalling or deleting app data |
+1. نسخه 1.4.0 امضاشده را نصب کنید.
+2. یک Release با نسخه بالاتر بسازید و دو asset با نام‌های دقیق `raahat-vpn.apk` و `raahat-vpn.apk.sha256` منتشر کنید.
+3. در برنامه دکمه «بررسی نسخه جدید» را بزنید.
+4. بررسی کنید درصد دانلود نمایش داده شود.
+5. فایل باید با SHA-256 تأیید شود.
+6. نصب‌کنندهٔ Android باید باز شود و نصب را از کاربر تأیید بگیرد.
+7. نسخه را باز کنید و مطمئن شوید اطلاعات انتخاب برنامه‌ها باقی مانده است.
 
-## Collect diagnostics on Windows
+اگر فایل APK با کلید امضای دیگری ساخته شود، Android به‌روزرسانی را رد می‌کند.
 
-With Android Platform Tools installed and USB debugging enabled:
+## گزارش خطا در Windows
+
+با USB debugging و Android Platform Tools:
 
 ```powershell
 adb devices
 adb logcat -c
-adb logcat -v time | findstr /i "RaahatVPN WireGuard GoBackend VpnService"
+adb logcat -v time | findstr /i "RaahatVPN OpenVPN VpnStatus VpnService"
 ```
 
-In another PowerShell window, inspect VPN/network state:
+برای بررسی وضعیت VPN:
 
 ```powershell
 adb shell dumpsys connectivity | findstr /i "vpn"
 adb shell dumpsys package com.example.onetapvpn
 ```
 
-Stop logcat with Ctrl+C. Review the output before sharing it; do not send WireGuard private keys, QR codes, passwords, or full configuration files.
+قبل از ارسال گزارش، اطلاعات حساس، توکن، رمز عبور، IP شخصی یا فایل کانفیگ را حذف کنید.
 
-## Report back
+## یادآوری امنیتی
 
-Record the phone model, Android version, connection type (Wi-Fi/mobile), whether WARP or a personal WireGuard profile was used, the test that failed, and the relevant redacted log lines.
+سرورهای VPN Gate توسط داوطلبان اداره می‌شوند. اپراتور ناشناس را معادل سرویس‌دهندهٔ خصوصی قابل‌اعتماد در نظر نگیرید. حساب‌های بانکی، گذرواژه‌ها و اطلاعات محرمانه را از این سرورها عبور ندهید.
