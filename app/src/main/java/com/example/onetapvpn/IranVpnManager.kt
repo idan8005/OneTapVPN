@@ -35,7 +35,6 @@ internal class IranVpnManager(private val context: Context) {
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_PACKAGES = "selected_packages"
         const val EXTRA_SELECTED_OUTBOUND = "selected_outbound_tag"
-        const val EXTRA_SELECTED_OUTBOUND = "selected_outbound_tag"
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
     }
 }
