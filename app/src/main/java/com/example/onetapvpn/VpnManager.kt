@@ -33,6 +33,7 @@ internal class VpnManager(private val context: Context) {
         profile.mUseDefaultRoute = true
         profile.mUseDefaultRoutev6 = true
         profile.mAllowAppVpnBypass = false
+        profile.mAllowLocalLAN = false
         profile.mAllowedAppsVpn.clear()
 
         when (routing.mode) {
