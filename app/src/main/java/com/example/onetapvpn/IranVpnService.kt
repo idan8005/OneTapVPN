@@ -121,7 +121,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
                     ?: error("The local server-health controller is not configured.")
                 awaitControllerReady(secret)
                 updateForegroundNotification(getString(R.string.iran_server_health_checking))
-                val healthResults = checkAllServers(secret, runtimeConfig, runSpeedTest = true)
+                val healthResults = checkAllServers(secret, runtimeConfig, runSpeedTest = false)
                 val available = healthResults.filter { it.pingMs > 0 }
                 if (scanOnly) {
                     publishScanComplete(available.size, healthResults.size)
@@ -1284,38 +1284,30 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val FALLBACK_PING_TEST_URL = "https://connectivitycheck.gstatic.com/generate_204"
         val INTERNET_TEST_URLS = listOf(
             PING_TEST_URL,
-            "https://www.google.com/generate_204",
-            FALLBACK_PING_TEST_URL,
-            "https://www.gstatic.com/generate_204",
-            "https://detectportal.firefox.com/success.txt",
-            "https://www.cloudflare.com/cdn-cgi/trace"
+            "https://www.msftconnecttest.com/connecttest.txt",
+            "https://detectportal.firefox.com/success.txt"
         )
-        // Use independent operators (Cloudflare, Google, Mozilla,
-        // Microsoft and Apple). A blocked Google/Cloudflare endpoint must not
-        // make every otherwise-healthy server appear offline.
+        // Short startup checks from independent operators. Do not wait through
+        // a long list of unreachable test sites for every candidate.
         val PING_TEST_URLS = listOf(
             PING_TEST_URL,
-            "https://www.google.com/generate_204",
-            FALLBACK_PING_TEST_URL,
-            "https://www.gstatic.com/generate_204",
-            "https://detectportal.firefox.com/success.txt",
             "https://www.msftconnecttest.com/connecttest.txt",
-            "https://captive.apple.com/hotspot-detect.html"
+            "https://detectportal.firefox.com/success.txt"
         )
-        const val PING_TEST_TIMEOUT_MS = 2_500
+        const val PING_TEST_TIMEOUT_MS = 1_400
         const val SPEED_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
         const val SPEED_TEST_TIMEOUT_MS = 6_000
         const val SPEED_TEST_MAX_BYTES = 128L * 1024L
         const val SPEED_TEST_MIN_BYTES = 32L * 1024L
         const val INTERNET_VERIFY_TIMEOUT_MS = 5_000
-        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 45
+        const val MAX_CONNECT_CANDIDATE_ATTEMPTS = 15
         const val MAX_TUN_FAILURES_BEFORE_CLASSIFY = 3
         const val LOOPBACK_SPEED_PROXY_HOST = "127.0.0.1"
         const val LOOPBACK_SPEED_PROXY_PORT = 2080
-        const val MAX_PARALLEL_PING_TESTS = 6
+        const val MAX_PARALLEL_PING_TESTS = 10
         const val MAX_PARALLEL_STABILITY_PROBES = 2
-        const val MAX_STABILITY_PROBE_CANDIDATES = 6
-        const val STABILITY_REPEAT_PROBES = 2
+        const val MAX_STABILITY_PROBE_CANDIDATES = 3
+        const val STABILITY_REPEAT_PROBES = 1
         const val MAX_SPEED_TEST_CANDIDATES = 4
         const val ACTIVE_SERVER_POLL_INTERVAL_MS = 8_000L
         const val ACTIVE_SERVER_FAILURES_BEFORE_SWITCH = 2
