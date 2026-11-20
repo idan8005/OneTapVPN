@@ -36,10 +36,12 @@ import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import java.net.HttpURLConnection
+import java.net.Proxy
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
 import java.net.URL
+import java.net.URLEncoder
 import java.util.Collections
 import org.json.JSONObject
 import java.net.NetworkInterface
@@ -48,7 +50,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * Optional sing-box engine for user-supplied VLESS + REALITY profiles.
@@ -59,6 +66,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
     private val connectivity by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
     private var commandServer: CommandServer? = null
     private var activeServerMonitorJob: kotlinx.coroutines.Job? = null
+    private var selectedOutboundTag: String = AUTO_OUTBOUND_TAG
     private var tunFileDescriptor: ParcelFileDescriptor? = null
     private var currentConfig: String? = null
     private var selectedPackages: List<String> = emptyList()
@@ -90,28 +98,62 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             ?.distinct()
             ?.filter { it.isNotBlank() }
             .orEmpty()
+        selectedOutboundTag = intent?.getStringExtra(EXTRA_SELECTED_OUTBOUND)
+            ?.takeIf { it.isNotBlank() }
+            ?: AUTO_OUTBOUND_TAG
         currentConfig = config
 
         serviceScope.launch {
-            runCatching {
+            try {
                 ensureLibboxSetup()
                 val server = commandServer ?: CommandServer(this@IranVpnService, this@IranVpnService).also {
                     it.start()
                     commandServer = it
                 }
                 server.startOrReloadService(config, createOverrideOptions())
-            }.onSuccess {
-                publishStatus(IranVpnContract.STATE_CONNECTED, getString(R.string.iran_engine_started))
-                updateForegroundNotification(getString(R.string.iran_engine_started))
-                startActiveServerMonitor(config)
-            }.onFailure { error ->
-                Log.e(TAG, "Could not start sing-box Iran mode", error)
+
+                val secret = readControllerSecret(config)
+                    ?: error("The local server-health controller is not configured.")
+                updateForegroundNotification(getString(R.string.iran_server_health_checking))
+                val healthResults = checkAllServers(secret, config)
+                val available = healthResults.filter { it.pingMs > 0 }
+                if (available.isEmpty()) {
+                    error(getString(R.string.iran_no_server_passed_test))
+                }
+
+                val chosenTag = if (selectedOutboundTag == AUTO_OUTBOUND_TAG) {
+                    selectBestServer(healthResults)?.tag
+                        ?: error(getString(R.string.iran_no_server_passed_test))
+                } else {
+                    val manuallyChosen = healthResults.firstOrNull { it.tag == selectedOutboundTag }
+                    if (manuallyChosen == null || manuallyChosen.pingMs <= 0) {
+                        error(getString(R.string.iran_manual_server_unavailable))
+                    }
+                    selectedOutboundTag
+                }
+
+                selectOutbound(secret, chosenTag)
+                kotlinx.coroutines.delay(350)
+                if (!verifyInternetThroughLocalProxy()) {
+                    error(getString(R.string.iran_internet_test_failed))
+                }
+
+                val chosen = healthResults.first { it.tag == chosenTag }
+                publishStatus(
+                    IranVpnContract.STATE_CONNECTED,
+                    getString(R.string.iran_connected_verified),
+                    chosenTag
+                )
+                updateForegroundNotification(
+                    getString(R.string.iran_connected_to_server, chosen.name, chosen.host, chosen.port)
+                )
+                startActiveServerMonitor(config, secret)
+            } catch (error: Exception) {
+                Log.e(TAG, "VPN startup or Internet verification failed", error)
                 publishStatus(
                     IranVpnContract.STATE_ERROR,
-                    getString(
-                        R.string.iran_engine_error,
-                        error.localizedMessage ?: error.javaClass.simpleName
-                    )
+                    error.localizedMessage?.take(220)
+                        ?: getString(R.string.status_error)
                 )
                 stopEngine()
                 stopSelf(startId)
