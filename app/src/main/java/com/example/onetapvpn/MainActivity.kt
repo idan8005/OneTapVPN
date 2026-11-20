@@ -893,7 +893,7 @@ class MainActivity : AppCompatActivity() {
     private fun openHybridAccountDialog() {
         val tokenInput = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            singleLine = true
+            setSingleLine(true)
             hint = getString(R.string.hybrid_token_hint)
             setText(secureTokenStore.readToken().orEmpty())
         }
