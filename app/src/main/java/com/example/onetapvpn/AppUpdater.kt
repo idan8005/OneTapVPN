@@ -2,8 +2,11 @@ package com.example.onetapvpn
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import java.io.File
 import java.io.IOException
@@ -166,8 +169,64 @@ internal class AppUpdater(context: Context) {
             clearPendingDownload()
             throw IOException("The update file failed its SHA-256 integrity check.")
         }
+        verifyApkIdentityAndSignature(apkFile)
         return apkFile
     }
+
+    private fun verifyApkIdentityAndSignature(apkFile: File) {
+        val packageManager = appContext.packageManager
+        val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNATURES
+            )
+        } ?: throw IOException("The downloaded file is not a valid Android APK.")
+
+        if (archiveInfo.packageName != appContext.packageName) {
+            throw IOException("The update belongs to a different application.")
+        }
+
+        val installedInfo = packageManager.getPackageInfo(appContext.packageName, 0)
+        val downloadedVersion = packageVersionCode(archiveInfo)
+        val installedVersion = packageVersionCode(installedInfo)
+        if (downloadedVersion <= installedVersion) {
+            throw IOException("The downloaded update is not newer than the installed version.")
+        }
+
+        val signers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            archiveInfo.signingInfo?.apkContentsSigners.orEmpty()
+        } else {
+            @Suppress("DEPRECATION")
+            archiveInfo.signatures.orEmpty()
+        }
+        val trustedSignerFound = signers.any { signature ->
+            sha256Bytes(signature.toByteArray()).equals(EXPECTED_SIGNER_CERT_SHA256, ignoreCase = true)
+        }
+        if (!trustedSignerFound) {
+            apkFile.delete()
+            clearPendingDownload()
+            throw IOException("The update signature does not match the official Raahat VPN certificate.")
+        }
+    }
+
+    private fun packageVersionCode(info: PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
+
+    private fun sha256Bytes(value: ByteArray): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value)
+            .joinToString("") { "%02x".format(it) }
 
     fun clearPendingDownload() {
         preferences.edit()
@@ -251,12 +310,12 @@ internal class AppUpdater(context: Context) {
         fun parts(value: String): List<Int> {
             val match = VERSION_PATTERN.matchEntire(value)
                 ?: throw IOException("Invalid application version: $value")
-            return match.groupValues.drop(1).map { it.toInt() }
+            return match.groupValues.drop(1).filter { it.isNotEmpty() }.map { it.toInt() }
         }
         val a = parts(left)
         val b = parts(right)
-        for (index in 0..2) {
-            val comparison = a[index].compareTo(b[index])
+        for (index in 0 until maxOf(a.size, b.size)) {
+            val comparison = (a.getOrNull(index) ?: 0).compareTo(b.getOrNull(index) ?: 0)
             if (comparison != 0) return comparison
         }
         return 0
@@ -293,9 +352,10 @@ internal class AppUpdater(context: Context) {
         const val CHECKSUM_ASSET_NAME = "raahat-vpn.apk.sha256"
         const val APK_FILE_NAME = "raahat-vpn-update.apk"
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+        const val EXPECTED_SIGNER_CERT_SHA256 = "152de76e27a36f9309a0f5391fa9735713abf5498eac2d991138708a67d67d2f"
         const val CONNECT_TIMEOUT_MS = 12_000
         const val READ_TIMEOUT_MS = 20_000
         val SHA256_PATTERN = Regex("(?i)\\b[0-9a-f]{64}\\b")
-        val VERSION_PATTERN = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)$")
+        val VERSION_PATTERN = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)(?:\\.(\\d+))?$")
     }
 }
