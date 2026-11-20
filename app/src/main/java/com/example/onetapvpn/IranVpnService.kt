@@ -196,7 +196,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             var lastTag: String? = null
             repeat(ACTIVE_SERVER_INITIAL_POLLS) {
                 val tag = readActiveOutboundTag(secret)
-                if (!tag.isNullOrBlank() && tag != lastTag) {
+                if (!tag.isNullOrBlank()) {
                     lastTag = tag
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
@@ -209,7 +209,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
             while (isActive) {
                 kotlinx.coroutines.delay(ACTIVE_SERVER_POLL_INTERVAL_MS)
                 val tag = readActiveOutboundTag(secret)
-                if (!tag.isNullOrBlank() && tag != lastTag) {
+                if (!tag.isNullOrBlank()) {
                     lastTag = tag
                     publishStatus(
                         IranVpnContract.STATE_CONNECTED,
@@ -576,7 +576,7 @@ internal class IranVpnService : VpnService(), PlatformInterface, CommandServerHa
         const val ACTION_STOP = "com.example.onetapvpn.iran.STOP"
         const val ACTIVE_SERVER_API_URL = "http://127.0.0.1:19090/proxies/auto"
         const val ACTIVE_SERVER_API_TIMEOUT_MS = 1_000
-        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 2_000L
+        const val ACTIVE_SERVER_POLL_INTERVAL_MS = 5_000L
         const val ACTIVE_SERVER_INITIAL_POLLS = 20
 
         @Volatile
