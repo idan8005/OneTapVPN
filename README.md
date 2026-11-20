@@ -1,60 +1,113 @@
-# Raahat VPN for Android
+# راحت وی‌پی‌ان | Raahat VPN
 
-**Raahat VPN (راحت وی‌پی‌ان)** is a lightweight Android VPN client built on the WireGuard tunnel library.
+A Persian-first Android VPN client that discovers free public VPN Gate relays,
+ranks candidates using the directory's reported ping, throughput, uptime and
+active sessions, and connects with OpenVPN. **WireGuard is not used.**
 
-## Current version
+## Features
 
-- Version: **1.3.0**
-- Version code: **4**
-- Android package: `com.example.onetapvpn` (kept stable so existing Release installations can update)
-- Minimum Android: Android 7.0 (API 24)
-- Java: 17
+- **Automatic free-server discovery:** downloads the public VPN Gate directory.
+- **Best-candidate selection:** ranks servers using their reported network
+  metrics; OpenVPN then attempts a real connection.
+- **Automatic failover:** if a relay rejects the connection, times out or drops
+  during setup, the app tries the next candidate.
+- **One-tap connect / disconnect:** Android's VPN permission is required once.
+- **Full tunnel:** all apps use the VPN.
+- **Selected apps:** only the apps checked in the app picker use the VPN.
+  Your selection is saved on the device.
+- **In-app update:** checks the latest GitHub Release, downloads the APK,
+  verifies its SHA-256 checksum, and opens the Android package installer.
+- **Persian and English UI.**
 
-## Simple start
+## Important: free volunteer servers
+
+VPN Gate relays are operated by volunteers, not by Raahat VPN. Published
+speed/ping values are directory measurements, not a guarantee of the speed
+you will receive. A server can go offline, become congested, or reject
+connections. Raahat automatically tries another candidate, but cannot promise
+that a free relay will always be available or fast.
+
+The relay operator controls the server. Do not use unknown volunteer relays
+for passwords, banking, private work, or other sensitive traffic. Read VPN
+Gate's own logging and privacy information before use:
+https://www.vpngate.net/en/about_abuse.aspx
+
+## Install and use
 
 1. Install the APK.
-2. Open **Raahat VPN**.
-3. Tap **Connect**. On the first connection only, approve Android's VPN permission prompt. Raahat VPN then attempts to obtain and save its WARP profile automatically.
+2. Open **راحت وی‌پی‌ان**.
+3. Choose **فول‌تانل** or **برنامه‌های انتخابی**.
+4. In selected-app mode, choose at least one app.
+5. Tap **اتصال** and approve Android's VPN permission prompt.
 
-The app also connects automatically each time it is opened (not when you return to it or rotate the screen). After Android permission has been approved, you can also connect or disconnect with one tap. No account, API key, manual server selection, or initial WireGuard profile import is required for the automatic WARP attempt.
+The first server list refresh requires internet access. If the first server is
+unreachable, the app automatically tries another ranked candidate.
 
-Manual WireGuard import/export is still available under **Advanced settings (optional)** and is hidden from the normal start screen.
+Android requires the user to approve VPN access on first connection. Android
+also controls the final APK installation confirmation during an update; a
+regular app cannot silently replace itself.
 
-## Build and test
+## Build from source
 
-Every push to `main` or `master` runs:
+Requirements: JDK 17, Android SDK platform 34 and Build Tools 34.0.0.
 
-1. Android Lint.
-2. JVM unit tests.
-3. Debug APK build and verification.
-4. Android emulator UI smoke test of the one-tap home screen and optional advanced profile panel.
-5. If the four release-signing Actions secrets exist, signed Release APK build and signature verification.
+The OpenVPN engine is included as a pinned Git submodule:
 
-The workflow publishes `RaahatVPN-Debug-APK` and, when signing secrets are configured, `RaahatVPN-Release-1.3.0` with the signed APK, SHA-256 checksum, and signing verification output.
+```bash
+git clone --recurse-submodules https://github.com/idan8005/OneTapVPN.git
+cd OneTapVPN
+gradle --no-daemon :app:assembleDebug
+```
 
-See [RELEASE_SIGNING_FA.md](RELEASE_SIGNING_FA.md) for the one-time setup of the four GitHub Actions secrets. The private keystore must never be committed to this repository.
+To initialize the pinned module in an existing clone:
 
-## Stable signing and updates
+```bash
+git submodule update --init --recursive
+```
 
-All Release APKs must use the same private keystore and a higher version code to update in place without uninstalling. The Android package ID remains unchanged intentionally.
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-The earlier 1.1.0 debug APK used a temporary debug certificate. Android will not allow a fixed-key Release APK to update that debug build in place. If that old debug build is installed, see the migration instructions in [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) before uninstalling it.
+## GitHub Actions and signed releases
 
-## Connection behaviour and limits
+Every push and pull request builds and tests the debug APK. A signed Release
+APK requires the four existing repository Actions secrets documented in
+[RELEASE_SIGNING_FA.md](RELEASE_SIGNING_FA.md). Keep using the same private
+keystore for every release; Android only permits an in-place update when the
+signing certificate matches.
 
-- **Automatic WARP profile:** On first connection, the app attempts to create a free Cloudflare WARP profile. The consumer registration endpoint used is unofficial for third-party clients and may be changed or blocked without notice. Automatic provisioning is not guaranteed.
-- **Fastest server:** For the automatic WARP profile, the first connection tests several Cloudflare WARP endpoints, keeps the one that completes a WireGuard handshake fastest, and remembers it. Later connections try that endpoint first. This picks the quickest entry point to Cloudflare's network; it does not choose a country, and actual speed still depends on your network. Profiles you import yourself are never changed.
-- **Your own WireGuard profile:** Import a `.conf` file or paste its contents from Advanced settings. Profiles are size-limited and validated before saving.
-- **Profile export:** Export a saved profile from Advanced settings. The exported file contains the private key; protect it and delete it after importing it on the destination device.
+To publish a version for the in-app updater:
 
-Profiles are encrypted with AES-GCM using an Android Keystore key. App backup and device-transfer backup are disabled so device-bound encrypted profiles are not restored without their key.
+1. Make sure the repository is public, or configure a public unauthenticated
+   release endpoint. The current repository is private, so normal app
+   installations cannot read its GitHub Releases API without authentication.
+2. Configure the four Release signing secrets.
+3. Push a version tag such as `v1.4.0`.
+4. The workflow builds, signs, verifies and publishes
+   `raahat-vpn.apk` and `raahat-vpn.apk.sha256` to the GitHub Release.
 
-## Physical-device validation
+The updater expects those exact asset names and compares the release tag to
+the installed app version. It downloads and verifies the APK before handing
+it to Android's installer. The user may need to allow installation from
+Raahat VPN in Android settings and must confirm the OS installer prompt.
 
-GitHub Actions can compile, lint, run JVM tests, and launch the UI on an emulator. This does not prove that a real phone, carrier/Wi-Fi network, DNS resolver, and VPN handshake work correctly. Follow [DEVICE_TEST_PLAN.md](DEVICE_TEST_PLAN.md) on a physical Android phone and share only redacted diagnostics.
+## Project layout
 
-## Important Android limitation
+- `app/`: application UI, server discovery, routing choices and updater.
+- `third_party/OpenGateVPN/vpnLib/`: OpenVPN Android engine.
+- `VpnGateApi.kt`: public directory fetch and server ranking.
+- `VpnManager.kt`: OpenVPN profile creation, per-app routing and tunnel start.
+- `VpnViewModel.kt`: connection state and automatic server failover.
+- `AppUpdater.kt`: release discovery, APK download and checksum validation.
 
-Android itself requires the user to approve VPN access on first connection. Raahat VPN cannot silently bypass this system security prompt. After approval, the app can connect and disconnect with one tap.
+## Licensing
 
-WARP does not provide arbitrary country selection, and this project does not promise unlimited service, a particular speed, or guaranteed availability.
+The bundled OpenVPN engine is GPL-3.0. This application and its redistribution
+must preserve the upstream notices and comply with the GPLv3 obligations.
+See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Physical device testing
+
+CI compilation and emulator UI tests do not prove that a specific phone,
+carrier, Wi-Fi network or VPN Gate relay completes a real tunnel. Test on a
+physical Android phone before relying on the app. Never submit private data
+or credentials through volunteer relays.
