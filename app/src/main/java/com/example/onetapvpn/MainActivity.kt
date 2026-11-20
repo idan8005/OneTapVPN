@@ -130,6 +130,7 @@ class MainActivity : AppCompatActivity() {
         registerStatusReceiver()
         updateCachedProfileSummary()
         render()
+        if (serverProfiles.isEmpty()) refreshServers()
     }
 
     override fun onResume() {
