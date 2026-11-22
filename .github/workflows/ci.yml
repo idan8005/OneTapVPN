@@ -179,13 +179,21 @@ jobs:
           repository: SagerNet/sing-box
           ref: v1.14.4
           path: vendor/sing-box
+      - name: Restore pinned Libbox framework cache
+        id: libbox-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor/sing-box/Libbox.xcframework
+          key: raahat-libbox-ios-1.14.4-go1.26-gomobile0.1.13-iphoneos-simulator
       - name: Install pinned Go mobile binding tools
+        if: steps.libbox-cache.outputs.cache-hit != 'true'
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
           go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           "$(go env GOPATH)/bin/gomobile" version
       - name: Generate official sing-box iOS device and simulator framework
+        if: steps.libbox-cache.outputs.cache-hit != 'true'
         working-directory: vendor/sing-box
         run: |
           gomobile init
