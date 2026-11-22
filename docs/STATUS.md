@@ -2,7 +2,7 @@
 
 Updated: 2026-11-22
 
-## Android — milestone 0.3.3-dev
+## Android — milestone 0.3.4-dev
 - Official sing-box Android libbox 1.14.4 is used for VLESS + REALITY and OpenVPN Client endpoints.
 - Android VpnService owns the foreground tunnel and TUN descriptor lifecycle.
 - Engine sockets are protected from VPN routing; physical network monitoring is wired.
@@ -17,6 +17,8 @@ Updated: 2026-11-22
 - The complete sing-box configuration is checked by libbox before starting the tunnel.
 - The app checks DNS resolution, IPv4 HTTPS egress and IPv6 HTTPS reachability separately; DNS and public IPv4 are required before reporting Connected, while IPv6 is informational only.
 - Android full-tunnel setup ensures IPv4 and IPv6 default routes at the OS layer when the engine supplies only partial routes; Android 13+ uses prefix iterators and older versions use libbox route-range iterators.
+- Android VpnService advertises Always-on support. The last tunnel configuration will be encrypted with an Android Keystore AES-GCM key for sticky-service recovery after OS restarts.
+- The UI opens Android VPN settings and guides users to enable both Always-on VPN and Block connections without VPN. The app does not automatically toggle this privileged system policy.
 - OpenVPN Client endpoint configurations set block_ipv6, which rejects IPv6 locally inside the engine; VLESS routes IPv6 to the proxy outbound.
 - Profiles and VPN Gate public credentials remain in memory and are not written to server-list API responses or logs.
 - ABI split APK builds target arm64-v8a, armeabi-v7a, x86_64 and x86.
@@ -33,7 +35,7 @@ Updated: 2026-11-22
 
 ## Important limitations
 - TCP reachability is only a preliminary filter, not an authenticated OpenVPN handshake or proof that VPN traffic passes end-to-end.
-- The in-app DNS/IPv4/IPv6 and IPv6-route fallback policies are unit-tested, but CI has not connected a physical Android device to a live VPN Gate server; actual DNS routing, IPv6 route behavior and leak protection still need device testing. Android system lockdown / always-on kill switch is not yet configured by the app.
+- Encrypted configuration recovery and system Always-on / lockdown behavior compile in CI but still require physical-device verification across reboot, service termination, revoked permission and OS vendor variants. Users must enable Android’s Block connections without VPN switch manually.
 - Volunteer-run public relays may be slow, unstable or log traffic under policies outside Raahat's control. Do not use them for sensitive traffic.
 - Premium authentication, short-lived leases, payments, managed server provisioning and admin UI are not implemented.
 - PostgreSQL/Redis persistence is not implemented; the dynamic Backend catalogue is in-memory.

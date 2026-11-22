@@ -33,6 +33,7 @@ WireGuard is excluded by product decision. Android uses sing-box 1.14.4 for VLES
 - Public credentials and private configuration are never logged or persisted by the VPN Gate discovery path.
 - Tokens and Premium private configuration are stored only in platform secure storage.
 - A client reports Connected only after the operating-system tunnel reports connected and independent HTTPS traffic verification succeeds.
+- Android Always-on support relies on an AES-GCM encrypted last-known tunnel configuration protected by an Android Keystore key; Android itself enforces lockdown only after the user enables Block connections without VPN in system settings.
 - Update packages must be authenticated by a trusted signature in addition to a digest.
 - Public volunteer-operated servers are not trusted Premium infrastructure and must be identified as community-provided.
 

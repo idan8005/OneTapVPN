@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.VpnService
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -128,6 +129,7 @@ class MainActivity : ComponentActivity() {
                     onConnectFree = ::discoverAndConnectFree,
                     onSelectFree = ::connectSelectedFreeServer,
                     onConnectVless = ::requestVlessConnection,
+                    onOpenVpnSettings = ::openVpnSecuritySettings,
                     onDisconnect = {
                         automaticRetry = false
                         retryServers = emptyList()
@@ -163,6 +165,16 @@ class MainActivity : ComponentActivity() {
         backgroundExecutor.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
+    }
+
+    private fun openVpnSecuritySettings() {
+        val intent = Intent(Settings.ACTION_VPN_SETTINGS)
+        if (intent.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(intent) }
+                .onFailure { currentMessage = "باز کردن تنظیمات VPN ممکن نشد. از تنظیمات شبکهٔ Android وارد بخش VPN شو." }
+        } else {
+            currentMessage = "صفحهٔ تنظیمات VPN در این نسخهٔ Android در دسترس نیست؛ از تنظیمات شبکه وارد بخش VPN شو."
+        }
     }
 
     private fun readSavedState() {
@@ -325,6 +337,7 @@ private fun RaahatHome(
     onConnectFree: () -> Unit,
     onSelectFree: (FreeServer) -> Unit,
     onConnectVless: (String) -> Boolean,
+    onOpenVpnSettings: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     var showImportDialog by remember { mutableStateOf(false) }
@@ -368,6 +381,25 @@ private fun RaahatHome(
                             enabled = state != ConnectionState.DISCONNECTING
                         ) { Text("قطع اتصال") }
                     }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text("محافظت در برابر قطع VPN (Kill Switch)", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "برای فعال‌سازی، تنظیمات VPN گوشی را باز کن؛ Raahat VPN را انتخاب کن، «Always-on VPN» را روشن کن و سپس «Block connections without VPN» را فعال کن. این دو گزینه را خود Android اعمال می‌کند.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onOpenVpnSettings, modifier = Modifier.fillMaxWidth()) {
+                        Text("باز کردن تنظیمات VPN")
+                    }
+                    Text(
+                        "وقتی مسدودسازی روشن باشد، با قطع یا خرابی VPN اینترنت گوشی هم قطع می‌شود. برای قطع دائمی VPN، ابتدا این گزینه‌ها را در تنظیمات Android خاموش کن.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
