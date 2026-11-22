@@ -33,6 +33,8 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import java.io.File
+import java.net.InetAddress
+import java.nio.charset.StandardCharsets
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
@@ -54,6 +56,11 @@ class RaahatVpnService : VpnService() {
         private const val CHANNEL_ID = "raahat-vpn-connection"
         private const val NOTIFICATION_ID = 4101
         private const val PREFS = "raahat_connection"
+        private const val DNS_PROBE_HOST = "cloudflare.com"
+        private const val IPV4_PROBE_URL = "https://ipv4.icanhazip.com/"
+        private const val IPV6_PROBE_URL = "https://ipv6.icanhazip.com/"
+        private const val HEALTH_PROBE_TIMEOUT_MS = 4500
+        private const val MAX_HEALTH_RESPONSE_BYTES = 128
 
         fun start(context: Context, singBoxConfig: String) {
             val intent = Intent(context, RaahatVpnService::class.java)
@@ -221,11 +228,13 @@ class RaahatVpnService : VpnService() {
             if (!tunOpened.get()) {
                 throw IllegalStateException("The engine did not establish the Android TUN interface.")
             }
-            if (!verifyTunnelTraffic()) {
-                throw IllegalStateException("Tunnel traffic verification failed.")
+            val healthReport = verifyTunnelTraffic()
+            if (!healthReport.isReady) {
+                stopEngine(ConnectionState.FAILED, healthReport.toPersianMessage())
+                return
             }
 
-            saveState(this, ConnectionState.CONNECTED, "تونل برقرار است و عبور ترافیک تأیید شد.")
+            saveState(this, ConnectionState.CONNECTED, healthReport.toPersianMessage())
             updateNotification("اتصال امن برقرار است")
         } catch (error: Exception) {
             Log.w("RaahatVPN", "VPN start failed (" + error.javaClass.simpleName + ")")
@@ -233,32 +242,56 @@ class RaahatVpnService : VpnService() {
         }
     }
 
-    private fun verifyTunnelTraffic(): Boolean {
-        if (!tunOpened.get()) return false
-        val endpoints = listOf(
-            "https://cloudflare.com/cdn-cgi/trace",
-            "https://connectivitycheck.gstatic.com/generate_204"
+    private fun verifyTunnelTraffic(): TunnelHealthReport {
+        if (!tunOpened.get()) return TunnelHealthPolicy.evaluate(
+            dnsResolved = false,
+            ipv4Address = null,
+            ipv6Address = null
         )
-        for (endpoint in endpoints) {
-            val connection = runCatching {
-                (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 7000
-                    readTimeout = 7000
-                    requestMethod = "GET"
-                    instanceFollowRedirects = false
-                    useCaches = false
-                    connect()
-                }
-            }.getOrNull() ?: continue
-            try {
-                if (connection.responseCode in 200..299) return true
-            } catch (_: Exception) {
-                // Try the second independent HTTPS endpoint.
-            } finally {
-                connection.disconnect()
+
+        // This lookup uses Android's active VPN DNS path. The HTTPS probes below
+        // independently verify IPv4 and IPv6 reachability through the established tunnel.
+        val dnsResolved = runCatching {
+            InetAddress.getAllByName(DNS_PROBE_HOST).isNotEmpty()
+        }.getOrDefault(false)
+
+        val ipv4Address = requestProbeAddress(IPV4_PROBE_URL)
+        val ipv6Address = requestProbeAddress(IPV6_PROBE_URL)
+        return TunnelHealthPolicy.evaluate(dnsResolved, ipv4Address, ipv6Address)
+    }
+
+    private fun requestProbeAddress(endpoint: String): String? {
+        val connection = runCatching {
+            (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                connectTimeout = HEALTH_PROBE_TIMEOUT_MS
+                readTimeout = HEALTH_PROBE_TIMEOUT_MS
+                requestMethod = "GET"
+                instanceFollowRedirects = false
+                useCaches = false
+                setRequestProperty("Cache-Control", "no-cache")
             }
+        }.getOrNull() ?: return null
+
+        return try {
+            if (connection.responseCode !in 200..299) return null
+            val output = java.io.ByteArrayOutputStream()
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(64)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > MAX_HEALTH_RESPONSE_BYTES) return null
+                    output.write(buffer, 0, count)
+                }
+            }
+            output.toString(StandardCharsets.UTF_8.name()).trim().takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
         }
-        return false
     }
 
     private fun stopEngine(state: ConnectionState, message: String?) {

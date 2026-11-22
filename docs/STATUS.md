@@ -2,7 +2,7 @@
 
 Updated: 2026-11-22
 
-## Android — milestone 0.3.1-dev
+## Android — milestone 0.3.2-dev
 - Official sing-box Android libbox 1.14.4 is used for VLESS + REALITY and OpenVPN Client endpoints.
 - Android VpnService owns the foreground tunnel and TUN descriptor lifecycle.
 - Engine sockets are protected from VPN routing; physical network monitoring is wired.
@@ -15,7 +15,7 @@ Updated: 2026-11-22
 - The fastest candidates are tried automatically; after a tunnel or HTTPS verification failure, up to three candidates are attempted before reporting failure.
 - Relays that fail a real connection attempt are locally hidden and excluded from automatic selection for a 15-minute cooldown; only a stable server ID and timestamp are persisted.
 - The complete sing-box configuration is checked by libbox before starting the tunnel.
-- The app only reports Connected after independent HTTPS traffic verification.
+- The app checks DNS resolution, IPv4 HTTPS egress and IPv6 HTTPS reachability separately; DNS and public IPv4 are required before reporting Connected, while IPv6 is informational only.
 - Profiles and VPN Gate public credentials remain in memory and are not written to server-list API responses or logs.
 - ABI split APK builds target arm64-v8a, armeabi-v7a, x86_64 and x86.
 
@@ -31,7 +31,7 @@ Updated: 2026-11-22
 
 ## Important limitations
 - TCP reachability is only a preliminary filter, not an authenticated OpenVPN handshake or proof that VPN traffic passes end-to-end.
-- CI has not connected a physical Android device to a live VPN Gate server; actual server compatibility, DNS, IPv6 and traffic flow still need device testing.
+- The in-app DNS/IPv4/IPv6 probes are unit-tested, but CI has not connected a physical Android device to a live VPN Gate server; real DNS routing, IPv6 leak protection and traffic flow still need device testing.
 - Volunteer-run public relays may be slow, unstable or log traffic under policies outside Raahat's control. Do not use them for sensitive traffic.
 - Premium authentication, short-lived leases, payments, managed server provisioning and admin UI are not implemented.
 - PostgreSQL/Redis persistence is not implemented; the dynamic Backend catalogue is in-memory.
