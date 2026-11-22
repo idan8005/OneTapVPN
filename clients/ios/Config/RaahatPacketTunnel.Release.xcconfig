@@ -1,0 +1,6 @@
+// Signing for the Packet Tunnel Network Extension. This target must use its
+// own App ID and provisioning profile with packet-tunnel-provider entitlement.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Apple Development
+DEVELOPMENT_TEAM = $(RAAHAT_IOS_TEAM_ID)
+PROVISIONING_PROFILE_SPECIFIER = $(RAAHAT_IOS_EXTENSION_PROFILE)
