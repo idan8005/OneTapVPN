@@ -39,7 +39,7 @@ Updated: 2026-11-22
 - Session configuration is held in a delete-on-close file under the current user's LocalAppData and removed when the engine exits. Engine stdout/stderr are not written to logs.
 - A Windows Job Object configured with KILL_ON_JOB_CLOSE supervises the engine process so closing the app also terminates the tunnel process tree.
 - The UI only marks the IPv4 egress check successful when a fresh HTTPS lookup at api.ipify.org shows a public IPv4 address different from the pre-connection address. This is an egress check, not a DNS/IPv6 leak audit.
-- The Windows package contains the upstream sing-box GPL notice and source reference. The app is not affiliated with SagerNet.
+- The Windows package contains the upstream sing-box GPL notice and source reference, a Persian quick-start guide and a double-click launcher. The app is not affiliated with SagerNet.
 - A verification console project tests valid and invalid profile cases and invokes sing-box config validation on the generated TUN/DoH/VLESS configuration.
 
 ## Backend — VPN Gate ingestion
@@ -52,10 +52,14 @@ Updated: 2026-11-22
 - Refuses empty refreshes so a source outage cannot erase the last known-good list.
 - Backend refresh is opt-in with RAAHAT_VPNGATE_ENABLED=true and runs every 20 minutes. This server-side adapter currently publishes TCP-probed records only.
 
-## iOS
+## iOS — engine groundwork
 - Swift shared core and a minimal SwiftUI app target exist.
-- PacketTunnelProvider intentionally fails closed until a reviewed Apple Network Extension adapter is linked.
-- The Apple Packet Tunnel is not operational yet; Apple developer team signing, provisioning profile, app group, tunnel entitlement approval and on-device validation remain outstanding.
+- A native Swift VLESS + REALITY profile parser validates UUID, Reality public key, short ID, SNI, fingerprint, flow and TCP transport; malformed and duplicate query parameters are rejected.
+- The parser can generate a sing-box full-tunnel configuration with native DNS settings and DNS-over-HTTPS routed through the proxy.
+- Swift unit tests cover valid links, invalid schemes, non-Reality links, unsupported UDP transport, malformed public keys, duplicate query parameters and the generated configuration shape.
+- CI now has steps to compile the unsigned iOS app and Packet Tunnel target, and to build the official sing-box v1.14.4 Libbox.xcframework for iOS device and simulator from the pinned upstream source.
+- PacketTunnelProvider intentionally remains fail-closed until the native Libbox platform interface is integrated and reviewed. The framework build step is still being validated; the iOS tunnel is not operational yet.
+- Apple Developer Team signing, provisioning profile, Network Extension entitlement approval and on-device validation remain outstanding.
 
 ## Important limitations
 - CI compilation and sing-box config validation do not prove that a VPN connection works on a real Windows PC. No physical Windows routing, network-adapter, DNS/IPv6 leak, Wi-Fi handover, or crash test has been completed.
@@ -66,7 +70,7 @@ Updated: 2026-11-22
 - Volunteer-run public relays may be slow, unstable or log traffic under policies outside Raahat's control. Do not use them for sensitive traffic.
 - Premium authentication, short-lived leases, payments, managed server provisioning and admin UI are not implemented.
 - PostgreSQL/Redis persistence is not implemented; the dynamic Backend catalogue is in-memory.
-- iOS sing-box Packet Tunnel integration and Apple signing/provisioning are not implemented.
+- iOS Packet Tunnel integration, Apple signing/provisioning and real-device validation are not complete.
 - Signed in-app update service is not implemented.
 - Physical-device verification for DNS leaks, IPv6 handling, kill switch, split tunneling, Wi-Fi/mobile handover and battery use remains outstanding.
 
