@@ -29,6 +29,19 @@ Updated: 2026-11-22
 - A Windows helper script creates the private signing key and the four values that the repository owner must add as Actions Secrets. Until all four secrets exist, CI builds and tests Debug as usual and intentionally skips signed Release APK generation.
 - APKs built before the persistent key is configured may not be upgrade-compatible with APKs signed by the new key. Do not uninstall an existing app until a data-safe migration path is prepared.
 
+## Windows — first operational client milestone 0.2.0-dev
+- WPF UI is connected to an external sing-box process; the previous disabled placeholder button has been removed.
+- CI downloads the official sing-box v1.14.4 Windows x64 archive from SagerNet and verifies its pinned SHA-256 before including the engine in the package.
+- The Windows app accepts VLESS + REALITY links using TCP only; duplicate query keys, invalid UUIDs, malformed Reality public keys, unsupported transports, non-Reality links and unsupported flow values are rejected.
+- A full-tunnel TUN configuration is generated with IPv4/IPv6 addressing, auto_route, strict_route, DNS hijacking and Cloudflare DNS-over-HTTPS. Private and link-local ranges are excluded to preserve LAN access.
+- Every generated configuration is checked with the same pinned sing-box binary before starting the tunnel.
+- The client requires administrator approval through Windows UAC to create the TUN adapter and modify routes.
+- Session configuration is held in a delete-on-close file under the current user's LocalAppData and removed when the engine exits. Engine stdout/stderr are not written to logs.
+- A Windows Job Object configured with KILL_ON_JOB_CLOSE supervises the engine process so closing the app also terminates the tunnel process tree.
+- The UI only marks the IPv4 egress check successful when a fresh HTTPS lookup at api.ipify.org shows a public IPv4 address different from the pre-connection address. This is an egress check, not a DNS/IPv6 leak audit.
+- The Windows package contains the upstream sing-box GPL notice and source reference. The app is not affiliated with SagerNet.
+- A verification console project tests valid and invalid profile cases and invokes sing-box config validation on the generated TUN/DoH/VLESS configuration.
+
 ## Backend — VPN Gate ingestion
 - Added an opt-in adapter for the official HTTPS CSV API.
 - Validates CSV fields, public IPv4 addresses, OpenVPN profile size, matching remote host, port and TCP transport.
@@ -39,16 +52,23 @@ Updated: 2026-11-22
 - Refuses empty refreshes so a source outage cannot erase the last known-good list.
 - Backend refresh is opt-in with RAAHAT_VPNGATE_ENABLED=true and runs every 20 minutes. This server-side adapter currently publishes TCP-probed records only.
 
+## iOS
+- Swift shared core and a minimal SwiftUI app target exist.
+- PacketTunnelProvider intentionally fails closed until a reviewed Apple Network Extension adapter is linked.
+- The Apple Packet Tunnel is not operational yet; Apple developer team signing, provisioning profile, app group, tunnel entitlement approval and on-device validation remain outstanding.
+
 ## Important limitations
-- TCP reachability is only a preliminary filter, not an authenticated OpenVPN handshake or proof that VPN traffic passes end-to-end.
-- Encrypted configuration recovery and system Always-on / lockdown behavior compile in CI but still require physical-device verification across reboot, service termination, revoked permission and OS vendor variants. Automatic status reporting is only available from Android 10 onward because the public VpnService query methods were added in API 29. Users must enable Android’s Block connections without VPN switch manually.
+- CI compilation and sing-box config validation do not prove that a VPN connection works on a real Windows PC. No physical Windows routing, network-adapter, DNS/IPv6 leak, Wi-Fi handover, or crash test has been completed.
+- Windows supports only VLESS + REALITY over TCP in this milestone. Automatic free-server discovery, OpenVPN UI, per-app split tunneling, Windows Kill Switch/Always-on, automatic reconnection and signed in-app updates are not implemented.
+- Windows checks IPv4 egress using api.ipify.org. The provider can see the request's public IP. DNS and IPv6 behavior require separate independent tests.
+- If the Windows engine exits unexpectedly, Windows may remove its TUN routes; this milestone is not a system Kill Switch and must not be treated as such.
+- Encrypted Android configuration recovery and system Always-on / lockdown behavior compile in CI but still require physical-device verification across reboot, service termination, revoked permission and OS vendor variants. Automatic status reporting is only available from Android 10 onward because the public VpnService query methods were added in API 29. Users must enable Android’s Block connections without VPN switch manually.
 - Volunteer-run public relays may be slow, unstable or log traffic under policies outside Raahat's control. Do not use them for sensitive traffic.
 - Premium authentication, short-lived leases, payments, managed server provisioning and admin UI are not implemented.
 - PostgreSQL/Redis persistence is not implemented; the dynamic Backend catalogue is in-memory.
-- Windows tunnel/engine integration is not implemented.
 - iOS sing-box Packet Tunnel integration and Apple signing/provisioning are not implemented.
 - Signed in-app update service is not implemented.
 - Physical-device verification for DNS leaks, IPv6 handling, kill switch, split tunneling, Wi-Fi/mobile handover and battery use remains outstanding.
 
 ## Release rule
-CI compilation and unit tests are necessary but are not proof of a working VPN connection. Do not publish this development build as a production-ready VPN until live server tests, independent security review and real-device testing pass.
+CI compilation, unit tests and config parsing are necessary but are not proof of a working VPN connection. Do not publish this development build as a production-ready VPN until live server tests, independent security review and real-device testing pass.
