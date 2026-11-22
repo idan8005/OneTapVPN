@@ -47,7 +47,7 @@ MustReject(
     validLink.Replace("type=tcp", "type=udp", StringComparison.Ordinal),
     "unsupported UDP transport");
 MustReject(
-    validLink + "&security=reality",
+    validLink.Replace("#Test%20Relay", "&security=reality#Test%20Relay", StringComparison.Ordinal),
     "duplicate query key");
 MustReject(
     validLink.Replace("pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "pbk=bad", StringComparison.Ordinal),
