@@ -57,6 +57,7 @@ class RaahatVpnService : VpnService() {
         private const val NOTIFICATION_ID = 4101
         private const val PREFS = "raahat_connection"
         private const val DNS_PROBE_HOST = "cloudflare.com"
+        private const val DNS_FALLBACK_HOST = "connectivitycheck.gstatic.com"
         private const val IPV4_PROBE_URL = "https://ipv4.icanhazip.com/"
         private const val IPV6_PROBE_URL = "https://ipv6.icanhazip.com/"
         private const val HEALTH_PROBE_TIMEOUT_MS = 4500
@@ -251,9 +252,9 @@ class RaahatVpnService : VpnService() {
 
         // This lookup uses Android's active VPN DNS path. The HTTPS probes below
         // independently verify IPv4 and IPv6 reachability through the established tunnel.
-        val dnsResolved = runCatching {
-            InetAddress.getAllByName(DNS_PROBE_HOST).isNotEmpty()
-        }.getOrDefault(false)
+        val dnsResolved = listOf(DNS_PROBE_HOST, DNS_FALLBACK_HOST).any { host ->
+            runCatching { InetAddress.getAllByName(host).isNotEmpty() }.getOrDefault(false)
+        }
 
         val ipv4Address = requestProbeAddress(IPV4_PROBE_URL)
         val ipv6Address = requestProbeAddress(IPV6_PROBE_URL)
@@ -281,6 +282,7 @@ class RaahatVpnService : VpnService() {
                 while (true) {
                     val count = input.read(buffer)
                     if (count < 0) break
+                    if (count == 0) break
                     total += count
                     if (total > MAX_HEALTH_RESPONSE_BYTES) return null
                     output.write(buffer, 0, count)

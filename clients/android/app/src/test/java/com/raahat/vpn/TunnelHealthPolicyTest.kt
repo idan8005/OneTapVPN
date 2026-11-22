@@ -56,6 +56,7 @@ class TunnelHealthPolicyTest {
         assertFalse(TunnelHealthPolicy.isPublicIpv6("::1"))
         assertFalse(TunnelHealthPolicy.isPublicIpv6("fe80::1"))
         assertFalse(TunnelHealthPolicy.isPublicIpv6("fd00::1"))
+        assertFalse(TunnelHealthPolicy.isPublicIpv6("2001:db8::1"))
         assertFalse(TunnelHealthPolicy.isPublicIpv6("not-an-ip"))
     }
 

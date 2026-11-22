@@ -75,8 +75,6 @@ internal object TunnelHealthPolicy {
             a == 198 && b in 18..19 -> false
             a == 198 && b == 51 && c == 100 -> false
             a == 203 && b == 0 && c == 113 -> false
-            a == 198 && b == 51 && c == 100 -> false
-            a == 203 && b == 0 && c == 113 -> false
             else -> true
         }
     }
@@ -94,7 +92,7 @@ internal object TunnelHealthPolicy {
         val second = bytes[1].toInt() and 0xff
         val third = bytes[2].toInt() and 0xff
         val fourth = bytes[3].toInt() and 0xff
-        if (first == 0xfc || first == 0xfd) return false // Unique-local address.
+        if ((first and 0xe0) != 0x20) return false // Global unicast space (2000::/3) only.
         if (first == 0x20 && second == 0x01 && third == 0x0d && fourth == 0xb8) return false // Documentation prefix.
         return true
     }
