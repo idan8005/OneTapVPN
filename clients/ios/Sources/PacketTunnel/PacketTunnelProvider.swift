@@ -213,7 +213,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             insertion[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             let insertionStatus = SecItemAdd(insertion as CFDictionary, nil)
             if insertionStatus == errSecSuccess {
-                return SymmetricKey(data: keyData)
+                return keyData
             }
             if insertionStatus == errSecDuplicateItem && attempt == 0 {
                 continue
