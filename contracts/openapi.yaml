@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Raahat VPN Control Plane API
   version: 1.0.0
-  description: Public metadata API. No VPN credentials or private server configuration are returned.
+  description: Public server metadata API. No private keys, OpenVPN profile blobs, or reusable credentials are returned.
 servers:
   - url: https://api.example.invalid
 paths:
@@ -31,7 +31,7 @@ paths:
   /api/v1/servers:
     get:
       operationId: listServers
-      summary: List healthy, enabled server metadata
+      summary: List enabled, healthy Free and Premium server metadata
       parameters:
         - name: tier
           in: query
@@ -41,7 +41,7 @@ paths:
             enum: [free, premium]
       responses:
         "200":
-          description: Server metadata.
+          description: Server metadata only. A tcp-reachable check is not an authenticated VPN tunnel test.
           content:
             application/json:
               schema:
@@ -62,10 +62,10 @@ components:
       properties:
         status: { type: string, const: ok }
         service: { type: string, const: raahat-control-plane }
-        version: { type: string, const: 0.1.0-dev }
+        version: { type: string, const: 0.2.0-dev }
     Server:
       type: object
-      required: [id, name, country_code, region, tier, protocol, enabled, healthy, latency_ms, packet_loss_percent, capacity_percent]
+      required: [id, name, country_code, region, tier, protocol, enabled, healthy, latency_ms, packet_loss_percent, capacity_percent, packet_loss_known, capacity_known]
       properties:
         id: { type: string }
         name: { type: string }
@@ -75,9 +75,19 @@ components:
         protocol: { type: string, enum: [vless-reality, openvpn] }
         enabled: { type: boolean }
         healthy: { type: boolean }
-        latency_ms: { type: integer, minimum: 0 }
+        latency_ms: { type: integer, minimum: 0, description: "Source-reported latency; use probe_latency_ms for TCP-reachable entries." }
         packet_loss_percent: { type: number, minimum: 0, maximum: 100 }
+        packet_loss_known: { type: boolean, description: "False means no measured packet-loss sample is available." }
         capacity_percent: { type: number, minimum: 0, maximum: 100 }
+        capacity_known: { type: boolean, description: "False means current server capacity is not reported or measured." }
+        source: { type: string, description: "Public or managed catalogue source identifier." }
+        endpoint_host: { type: string, description: "Public endpoint hostname; never contains authentication credentials." }
+        endpoint_port: { type: integer, minimum: 1, maximum: 65535 }
+        probe_latency_ms: { type: integer, minimum: 0, description: "TCP connect latency; not an OpenVPN handshake measurement." }
+        quality_score: { type: integer, minimum: 0 }
+        active_sessions: { type: integer, minimum: 0 }
+        verification_level: { type: string, enum: [tcp-reachable], description: "Strength of reachability evidence." }
+        last_checked_at: { type: string, format: date-time }
     ServerList:
       type: object
       required: [data, count]

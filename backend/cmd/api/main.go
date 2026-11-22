@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/idan8005/OneTapVPN/backend/internal/catalog"
+	"github.com/idan8005/OneTapVPN/backend/internal/discovery"
 	"github.com/idan8005/OneTapVPN/backend/internal/httpapi"
 )
 
@@ -23,7 +24,15 @@ func main() {
 }
 
 func run() error {
-	repository, err := catalog.Load(os.Getenv("RAAHAT_CATALOG_FILE"))
+	staticRepository, err := catalog.Load(os.Getenv("RAAHAT_CATALOG_FILE"))
+	if err != nil {
+		return err
+	}
+	initialServers, err := staticRepository.List(context.Background())
+	if err != nil {
+		return err
+	}
+	repository, err := catalog.NewMemory(initialServers)
 	if err != nil {
 		return err
 	}
@@ -52,6 +61,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if strings.EqualFold(os.Getenv("RAAHAT_VPNGATE_ENABLED"), "true") {
+		go refreshVPNGateUntilStopped(ctx, repository)
+	}
+
 	errorsChannel := make(chan error, 1)
 	go func() {
 		log.Printf("Raahat control plane listening on %s", address)
@@ -72,6 +85,38 @@ func run() error {
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdownContext)
+	}
+}
+
+func refreshVPNGateUntilStopped(ctx context.Context, repository *catalog.Memory) {
+	source := discovery.NewVPNGateSource()
+	refresh := func() {
+		servers, err := source.Fetch(ctx)
+		if err != nil {
+			log.Printf("VPN Gate directory refresh failed: %v", err)
+			return
+		}
+		if len(servers) == 0 {
+			log.Printf("VPN Gate directory refresh found no TCP-reachable servers; keeping last known good catalogue")
+			return
+		}
+		if err := repository.ReplaceSource("vpn-gate", servers); err != nil {
+			log.Printf("VPN Gate catalogue update rejected: %v", err)
+			return
+		}
+		log.Printf("VPN Gate directory refreshed: %d TCP-reachable public servers", len(servers))
+	}
+
+	refresh()
+	ticker := time.NewTicker(20 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refresh()
+		}
 	}
 }
 

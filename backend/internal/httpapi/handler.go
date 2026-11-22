@@ -44,7 +44,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, healthResponse{
-		Status: "ok", Service: "raahat-control-plane", Version: "0.1.0-dev",
+		Status: "ok", Service: "raahat-control-plane", Version: "0.2.0-dev",
 	})
 }
 
@@ -78,10 +78,21 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.SliceStable(visible, func(i, j int) bool {
-		if visible[i].LatencyMS == visible[j].LatencyMS {
-			return visible[i].ID < visible[j].ID
+		leftLatency := visible[i].LatencyMS
+		if visible[i].VerificationLevel == "tcp-reachable" {
+			leftLatency = visible[i].ProbeLatencyMS
 		}
-		return visible[i].LatencyMS < visible[j].LatencyMS
+		rightLatency := visible[j].LatencyMS
+		if visible[j].VerificationLevel == "tcp-reachable" {
+			rightLatency = visible[j].ProbeLatencyMS
+		}
+		if leftLatency == rightLatency {
+			if visible[i].QualityScore == visible[j].QualityScore {
+				return visible[i].ID < visible[j].ID
+			}
+			return visible[i].QualityScore > visible[j].QualityScore
+		}
+		return leftLatency < rightLatency
 	})
 
 	writeJSON(w, http.StatusOK, serverListResponse{Data: visible, Count: len(visible)})

@@ -88,3 +88,34 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
 }
+
+func TestListServersRanksVerifiedProbeLatencyBeforeUnverifiedSourcePing(t *testing.T) {
+	repo, err := catalog.NewStatic([]domain.Server{
+		{
+			ID: "free-verified", Name: "Free verified", CountryCode: "JP", Region: "Tokyo",
+			Tier: domain.TierFree, Protocol: domain.ProtocolOpenVPN, Enabled: true, Healthy: true,
+			LatencyMS: 18, ProbeLatencyMS: 42, Source: "vpn-gate", VerificationLevel: "tcp-reachable",
+		},
+		{
+			ID: "premium-unverified", Name: "Premium unverified", CountryCode: "DE", Region: "Frankfurt",
+			Tier: domain.TierPremium, Protocol: domain.ProtocolVLESSReality, Enabled: true, Healthy: true,
+			LatencyMS: 25,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandler(repo)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	var payload serverListResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Count != 2 || payload.Data[0].ID != "premium-unverified" {
+		t.Fatalf("expected measured latency ordering, got %+v", payload.Data)
+	}
+}
