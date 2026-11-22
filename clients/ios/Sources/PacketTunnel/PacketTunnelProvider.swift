@@ -76,6 +76,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         commandServer = nil
         platformInterface = nil
         activeConfiguration = nil
+
+        // A user-requested disconnect should not leave a stale configuration for recovery.
+        // System/network interruptions preserve it so iOS can restart the Packet Tunnel.
+        if reason == .userInitiated {
+            if let fileURL = try? configurationURL() {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
     }
 
     func stopLibboxService() throws {
