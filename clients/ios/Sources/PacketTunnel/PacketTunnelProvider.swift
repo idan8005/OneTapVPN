@@ -50,7 +50,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
         let platform = RaahatPlatformInterface(tunnel: self)
         var serverError: NSError?
-        guard let server = LibboxNewCommandServer(self, platform, &serverError) else {
+        guard let server = LibboxNewCommandServer(platform, platform, &serverError) else {
             throw serverError ?? tunnelError("sing-box could not create its command server.")
         }
 
