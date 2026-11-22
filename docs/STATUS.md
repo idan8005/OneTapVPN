@@ -52,7 +52,7 @@ Updated: 2026-11-22
 - Refuses empty refreshes so a source outage cannot erase the last known-good list.
 - Backend refresh is opt-in with RAAHAT_VPNGATE_ENABLED=true and runs every 20 minutes. This server-side adapter currently publishes TCP-probed records only.
 
-## iOS — native Packet Tunnel integration milestone (development; device validation pending)
+## iOS — native Packet Tunnel integration milestone (unsigned CI build verified; device validation pending)
 - Swift shared core parses VLESS + REALITY links over TCP and validates UUID, Reality public key, short ID, SNI, fingerprint, flow and duplicate query parameters.
 - The Swift profile builder generates sing-box configuration for TUN Full Tunnel routing and DNS-over-HTTPS through the VLESS proxy.
 - Swift unit tests cover valid and malformed links, unsupported transport/security, invalid Reality public keys, duplicate query parameters and generated configuration shape.
@@ -62,7 +62,7 @@ Updated: 2026-11-22
 - The extension's `RaahatPlatformInterface` maps Libbox TUN addresses/routes and DNS servers to `NEPacketTunnelNetworkSettings`, returns the public Libbox TUN descriptor, and observes network changes with `NWPathMonitor`. It waits for the first path update before continuing, with a bounded timeout.
 - The latest VPN configuration is saved in a shared App Group container using iOS file protection, allowing extension recovery if iOS restarts the provider. A deliberate user disconnect removes this saved configuration.
 - Optional iOS features unavailable to third-party Packet Tunnel providers (such as process attribution, system shell, SSH agent, SFTP and platform bridges) are not presented as supported.
-- CI is being used to compile the iOS app and Packet Tunnel against the generated native framework for both generic iOS device and simulator. The latest adapter build has not yet been confirmed successful.
+- CI run [45057511417](https://github.com/idan8005/OneTapVPN/actions/runs/45057511417) successfully compiled the SwiftUI app and Packet Tunnel against Libbox 1.14.4 for both generic iOS device and iOS Simulator. All four CI jobs (iOS, Android, Windows and Backend) passed in that run. The next workflow revision also publishes unsigned `.app` bundles for device and simulator as a downloadable artifact.
 - Apple Developer Team signing, provisioning profile, App Group registration, Network Extension entitlement approval and on-device validation remain outstanding. The current CI build is unsigned and is not an installable iPhone release.
 
 ## Important limitations
@@ -74,7 +74,7 @@ Updated: 2026-11-22
 - Volunteer-run public relays may be slow, unstable or log traffic under policies outside Raahat's control. Do not use them for sensitive traffic.
 - Premium authentication, short-lived leases, payments, managed server provisioning and admin UI are not implemented.
 - PostgreSQL/Redis persistence is not implemented; the dynamic Backend catalogue is in-memory.
-- iOS Packet Tunnel source is now connected to Libbox, but the Xcode build against the integrated framework is still being verified. Apple signing/provisioning, App Group registration and real-device validation are not complete.
+- iOS app and Packet Tunnel now compile successfully against the integrated Libbox framework for generic iOS device and simulator. This verifies compilation and linking only; Apple signing/provisioning, App Group registration, Network Extension entitlement approval and real-device tunnel validation are not complete.
 - Signed in-app update service is not implemented.
 - Physical-device verification for DNS leaks, IPv6 handling, kill switch, split tunneling, Wi-Fi/mobile handover and battery use remains outstanding.
 
