@@ -51,7 +51,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           httpapi.NewHandler(repository),
+		Handler:           httpapi.NewHandlerWithAllowedOrigins(repository, envOr("RAAHAT_CORS_ALLOWED_ORIGINS", "*")),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
