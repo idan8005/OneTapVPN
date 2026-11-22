@@ -32,6 +32,9 @@ targets:
     platform: iOS
     sources:
       - path: Sources/PacketTunnel
+    dependencies:
+      - framework: Frameworks/Libbox.xcframework
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.raahat.vpn.packet-tunnel
