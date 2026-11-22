@@ -2,7 +2,8 @@
 
 Updated: 2026-11-22
 
-## Android — milestone 0.3.5-dev
+## Android — milestone 0.3.6-dev
+- Android development version: versionCode 9, versionName 0.3.6-dev.
 - Official sing-box Android libbox 1.14.4 is used for VLESS + REALITY and OpenVPN Client endpoints.
 - Android VpnService owns the foreground tunnel and TUN descriptor lifecycle.
 - Engine sockets are protected from VPN routing; physical network monitoring is wired.
@@ -17,13 +18,16 @@ Updated: 2026-11-22
 - The complete sing-box configuration is checked by libbox before starting the tunnel.
 - The app checks DNS resolution, IPv4 HTTPS egress and IPv6 HTTPS reachability separately; DNS and public IPv4 are required before reporting Connected, while IPv6 is informational only.
 - Android full-tunnel setup ensures IPv4 and IPv6 default routes at the OS layer when the engine supplies only partial routes; Android 13+ uses prefix iterators and older versions use libbox route-range iterators.
-- Android VpnService advertises Always-on support. The last tunnel configuration will be encrypted with an Android Keystore AES-GCM key for sticky-service recovery after OS restarts.
+- Android VpnService advertises Always-on support. The latest tunnel configuration is encrypted using an Android Keystore AES-GCM key; only the IV and ciphertext are saved in app preferences for sticky-service recovery after OS restarts.
 - The UI opens Android VPN settings and guides users to enable both Always-on VPN and Block connections without VPN. The app does not automatically toggle this privileged system policy.
 - On Android 10+, the service queries the official VpnService API and the home screen displays the actual Always-on and lockdown values; older Android versions are shown as unsupported/unknown instead of being misreported as disabled.
 - A bounded UI refresh timeout handles a missing status response, and unit tests cover enabled, partial, inconsistent and unsupported status combinations.
 - OpenVPN Client endpoint configurations set block_ipv6, which rejects IPv6 locally inside the engine; VLESS routes IPv6 to the proxy outbound.
 - Profiles and VPN Gate public credentials remain in memory and are not written to server-list API responses or logs.
 - ABI split APK builds target arm64-v8a, armeabi-v7a, x86_64 and x86.
+- Gradle and CI now support a persistent private signing key for both Debug and Release APKs. The key is supplied only through GitHub Actions Secrets and is never committed to the public repository.
+- A Windows helper script creates the private signing key and the four values that the repository owner must add as Actions Secrets. Until all four secrets exist, CI builds and tests Debug as usual and intentionally skips signed Release APK generation.
+- APKs built before the persistent key is configured may not be upgrade-compatible with APKs signed by the new key. Do not uninstall an existing app until a data-safe migration path is prepared.
 
 ## Backend — VPN Gate ingestion
 - Added an opt-in adapter for the official HTTPS CSV API.
