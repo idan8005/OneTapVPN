@@ -50,6 +50,8 @@ public sealed class WindowsTunnelController : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (IsRunning)
             throw new InvalidOperationException("اتصال از قبل فعال است.");
+        if (_process is not null)
+            await StopAsync();
 
         var profile = VlessRealityProfile.Parse(vlessLink);
         var enginePath = Path.Combine(AppContext.BaseDirectory, "Core", "sing-box.exe");
@@ -110,7 +112,7 @@ public sealed class WindowsTunnelController : IDisposable
                 throw new InvalidOperationException("موتور VPN اجرا نشد.");
 
             job = WindowsJob.AttachKillOnClose(engine);
-            engine.Exited += (_, _) => EngineExited?.Invoke(this, EventArgs.Empty);
+            engine.Exited += (_, _) => HandleEngineExited(engine);
             engine.OutputDataReceived += (_, _) => { }; // Never write engine output or connection data to logs.
             engine.ErrorDataReceived += (_, _) => { };  // Errors are intentionally not persisted.
             engine.BeginOutputReadLine();
@@ -202,6 +204,18 @@ public sealed class WindowsTunnelController : IDisposable
         _configLease = null;
         _process?.Dispose();
         _process = null;
+    }
+
+    private void HandleEngineExited(Process engine)
+    {
+        if (ReferenceEquals(_process, engine))
+        {
+            _jobHandle?.Dispose();
+            _jobHandle = null;
+            _configLease?.Dispose();
+            _configLease = null;
+        }
+        EngineExited?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task ValidateConfigAsync(string enginePath, string configPath)
