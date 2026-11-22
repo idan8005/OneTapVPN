@@ -1,7 +1,7 @@
-import CryptoKit
 import Foundation
 import Libbox
 import NetworkExtension
+import RaahatCore
 import Security
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
@@ -114,7 +114,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         let encryptedData = try Data(contentsOf: fileURL)
-        let data = try decryptConfiguration(encryptedData)
+        let data = try ConfigurationCipher.open(
+            encryptedData,
+            keyData: configurationEncryptionKey()
+        )
         guard let configuration = String(data: data, encoding: .utf8), !configuration.isEmpty else {
             throw tunnelError("The saved VPN configuration could not be decrypted or decoded.")
         }
@@ -161,22 +164,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
         // The extension owns this keychain item; the containing app cannot read the key.
         // AES-GCM authenticates the full encrypted payload before recovery.
-        let sealedBox = try AES.GCM.seal(data, using: configurationEncryptionKey())
-        guard let encryptedData = sealedBox.combined else {
-            throw tunnelError("The VPN configuration could not be encrypted.")
-        }
+        let encryptedData = try ConfigurationCipher.seal(
+            data,
+            keyData: configurationEncryptionKey()
+        )
         try encryptedData.write(
             to: fileURL,
             options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
         )
     }
 
-    private func decryptConfiguration(_ encryptedData: Data) throws -> Data {
-        let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
-        return try AES.GCM.open(sealedBox, using: configurationEncryptionKey())
-    }
-
-    private func configurationEncryptionKey() throws -> SymmetricKey {
+    private func configurationEncryptionKey() throws -> Data {
         let service = "com.raahat.vpn.packet-tunnel.configuration"
         let account = "latest-config-aes256-v1"
         let baseQuery: [String: Any] = [
@@ -196,7 +194,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 guard let keyData = existing as? Data, keyData.count == 32 else {
                     throw tunnelError("The saved encryption key is invalid.")
                 }
-                return SymmetricKey(data: keyData)
+                return keyData
             }
             guard lookupStatus == errSecItemNotFound else {
                 throw keychainError(lookupStatus)
