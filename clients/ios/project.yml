@@ -37,6 +37,8 @@ targets:
     sources:
       - path: Sources/PacketTunnel
     dependencies:
+      - package: RaahatCore
+        product: RaahatCore
       - framework: Frameworks/Libbox.xcframework
         embed: false
       - sdk: UIKit.framework
