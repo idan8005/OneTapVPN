@@ -55,6 +55,10 @@ class MainActivity : ComponentActivity() {
 
     private var currentState by mutableStateOf(ConnectionState.DISCONNECTED)
     private var currentMessage by mutableStateOf("برای اتصال رایگان، سرورهای در دسترس را جست‌وجو کنید.")
+    private var vpnSecurityStatus by mutableStateOf<VpnSecurityStatus?>(null)
+    private var securityStatusLoading by mutableStateOf(false)
+    private var securityStatusMessage by mutableStateOf("وضعیت تنظیمات امنیتی Android هنوز بررسی نشده است.")
+    private var securityStatusRequestId = 0
     private var pendingConfig: String? = null
 
     private var freeServers by mutableStateOf<List<FreeServer>>(emptyList())
@@ -84,6 +88,26 @@ class MainActivity : ComponentActivity() {
 
     private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == RaahatVpnService.ACTION_SECURITY_STATUS) {
+                val supported = intent.getBooleanExtra(
+                    RaahatVpnService.EXTRA_SECURITY_STATUS_SUPPORTED,
+                    false
+                )
+                vpnSecurityStatus = VpnSecurityStatus(
+                    supported = supported,
+                    alwaysOnEnabled = intent.getBooleanExtra(RaahatVpnService.EXTRA_ALWAYS_ON, false),
+                    lockdownEnabled = intent.getBooleanExtra(RaahatVpnService.EXTRA_LOCKDOWN, false)
+                )
+                securityStatusLoading = false
+                securityStatusRequestId++
+                securityStatusMessage = if (supported) {
+                    "وضعیت مستقیماً از Android دریافت شد."
+                } else {
+                    "Android این نسخه امکان گزارش خودکار این دو گزینه را به برنامه نمی‌دهد؛ وضعیت را در تنظیمات VPN بررسی کن."
+                }
+                return
+            }
+
             val state = runCatching {
                 ConnectionState.valueOf(intent.getStringExtra(RaahatVpnService.EXTRA_STATE).orEmpty())
             }.getOrDefault(ConnectionState.DISCONNECTED)
@@ -126,6 +150,10 @@ class MainActivity : ComponentActivity() {
                     servers = freeServers,
                     scanning = scanning,
                     scanMessage = scanMessage,
+                    securityStatus = vpnSecurityStatus,
+                    securityStatusMessage = securityStatusMessage,
+                    securityStatusLoading = securityStatusLoading,
+                    onRefreshSecurityStatus = ::refreshSecurityStatus,
                     onConnectFree = ::discoverAndConnectFree,
                     onSelectFree = ::connectSelectedFreeServer,
                     onConnectVless = ::requestVlessConnection,
@@ -143,7 +171,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter(RaahatVpnService.ACTION_STATE)
+        val filter = IntentFilter(RaahatVpnService.ACTION_STATE).apply {
+            addAction(RaahatVpnService.ACTION_SECURITY_STATUS)
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(stateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -151,6 +181,7 @@ class MainActivity : ComponentActivity() {
             registerReceiver(stateReceiver, filter)
         }
         readSavedState()
+        refreshSecurityStatus()
         if (currentState == ConnectionState.FAILED) {
             tryNextFreeServer()
         }
@@ -165,6 +196,24 @@ class MainActivity : ComponentActivity() {
         backgroundExecutor.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
+    }
+
+    private fun refreshSecurityStatus() {
+        val requestId = ++securityStatusRequestId
+        securityStatusLoading = true
+        securityStatusMessage = "در حال دریافت وضعیت از Android…"
+        runCatching {
+            RaahatVpnService.requestSecurityStatus(this)
+        }.onFailure {
+            securityStatusLoading = false
+            securityStatusMessage = "درخواست بررسی وضعیت انجام نشد؛ تنظیمات VPN را مستقیماً بازبینی کن."
+        }
+        mainHandler.postDelayed({
+            if (requestId == securityStatusRequestId && securityStatusLoading) {
+                securityStatusLoading = false
+                securityStatusMessage = "پاسخ وضعیت از Android دریافت نشد؛ برای اطمینان، تنظیمات VPN را باز کن."
+            }
+        }, SECURITY_STATUS_TIMEOUT_MS)
     }
 
     private fun openVpnSecuritySettings() {
@@ -324,6 +373,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val MAX_AUTOMATIC_ATTEMPTS = 3
         private const val RETRY_DELAY_MS = 900L
+        private const val SECURITY_STATUS_TIMEOUT_MS = 2500L
     }
 }
 
@@ -334,6 +384,10 @@ private fun RaahatHome(
     servers: List<FreeServer>,
     scanning: Boolean,
     scanMessage: String,
+    securityStatus: VpnSecurityStatus?,
+    securityStatusMessage: String,
+    securityStatusLoading: Boolean,
+    onRefreshSecurityStatus: () -> Unit,
     onConnectFree: () -> Unit,
     onSelectFree: (FreeServer) -> Unit,
     onConnectVless: (String) -> Boolean,
@@ -388,12 +442,25 @@ private fun RaahatHome(
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("محافظت در برابر قطع VPN (Kill Switch)", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "برای فعال‌سازی، تنظیمات VPN گوشی را باز کن؛ Raahat VPN را انتخاب کن، «Always-on VPN» را روشن کن و سپس «Block connections without VPN» را فعال کن. این دو گزینه را خود Android اعمال می‌کند.",
+                        text = when {
+                            securityStatus == null -> securityStatusMessage
+                            !securityStatus.supported -> securityStatusMessage
+                            else -> "Always-on VPN: ${securityStatus.alwaysOnLabel}\n" +
+                                "Block connections without VPN: ${securityStatus.lockdownLabel}\n" +
+                                securityStatus.summary
+                        },
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = onOpenVpnSettings, modifier = Modifier.fillMaxWidth()) {
                         Text("باز کردن تنظیمات VPN")
+                    }
+                    TextButton(
+                        onClick = onRefreshSecurityStatus,
+                        enabled = !securityStatusLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (securityStatusLoading) "در حال بررسی…" else "بررسی دوباره وضعیت")
                     }
                     Text(
                         "وقتی مسدودسازی روشن باشد، با قطع یا خرابی VPN اینترنت گوشی هم قطع می‌شود. برای قطع دائمی VPN، ابتدا این گزینه‌ها را در تنظیمات Android خاموش کن.",
