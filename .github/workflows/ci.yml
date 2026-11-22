@@ -165,9 +165,37 @@ jobs:
           if-no-files-found: error
 
   ios-core:
-    name: iOS shared core tests
+    name: iOS shared core tests and native engine framework
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Test Swift core package
         run: swift test --package-path clients/ios
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: v1.14.4
+          path: vendor/sing-box
+      - name: Install pinned Go mobile binding tools
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/gomobile" version
+      - name: Generate official sing-box iOS device and simulator framework
+        working-directory: vendor/sing-box
+        run: |
+          gomobile init
+          go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
+          test -d Libbox.xcframework
+          test -f Libbox.xcframework/Info.plist
+          plutil -lint Libbox.xcframework/Info.plist
+          plutil -p Libbox.xcframework/Info.plist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-iOS-Libbox-1.14.4
+          path: vendor/sing-box/Libbox.xcframework/
+          if-no-files-found: error
