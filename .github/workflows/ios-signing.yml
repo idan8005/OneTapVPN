@@ -87,6 +87,7 @@ jobs:
           EXT_PLIST="$RUNNER_TEMP/raahat-ios-extension-profile.plist"
           KEYCHAIN_PATH="$RUNNER_TEMP/raahat-ios-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "RAAHAT_IOS_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
           export P12_PATH APP_PROFILE_PATH EXT_PROFILE_PATH
           python3 - <<'PY'
@@ -141,7 +142,8 @@ jobs:
           security default-keychain -d user -s "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q 'Apple Development:'; then
+          IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          if ! printf '%s\n' "$IDENTITIES" | grep -q 'Apple Development:'; then
             echo "The P12 must contain a valid Apple Development certificate with its private key." >&2
             exit 1
           fi
@@ -150,13 +152,6 @@ jobs:
             echo "RAAHAT_IOS_TEAM_ID=$TEAM_ID"
             echo "RAAHAT_IOS_APP_PROFILE=$APP_PROFILE_NAME"
             echo "RAAHAT_IOS_EXTENSION_PROFILE=$EXT_PROFILE_NAME"
-            echo "RAAHAT_IOS_KEYCHAIN_PATH=$KEYCHAIN_PATH"
-            echo "RAAHAT_IOS_APP_PROFILE_PATH=$APP_PROFILE_PATH"
-            echo "RAAHAT_IOS_EXTENSION_PROFILE_PATH=$EXT_PROFILE_PATH"
-            echo "RAAHAT_IOS_P12_PATH=$P12_PATH"
-            echo "RAAHAT_IOS_APP_PROFILE_PLIST=$APP_PLIST"
-            echo "RAAHAT_IOS_EXTENSION_PROFILE_PLIST=$EXT_PLIST"
-            echo "RAAHAT_IOS_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD"
           } >> "$GITHUB_ENV"
           {
             echo "app_profile_name=$APP_PROFILE_NAME"
@@ -179,6 +174,7 @@ jobs:
           set -euo pipefail
           EXPORT_OPTIONS="$RUNNER_TEMP/RaahatVPN-ExportOptions.plist"
           EXPORT_DIR="$RUNNER_TEMP/RaahatVPN-export"
+          export EXPORT_OPTIONS
           python3 - <<'PY'
           import os, plistlib
           options = {
