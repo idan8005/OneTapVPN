@@ -216,6 +216,12 @@ jobs:
           test -d "$FRAMEWORK/ios-arm64_x86_64-simulator/Libbox.framework"
           test -f "$FRAMEWORK/Info.plist"
           plutil -lint "$FRAMEWORK/Info.plist"
+      - name: Save verified Libbox framework cache before Xcode build
+        if: steps.libbox-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vendor/sing-box/Libbox.xcframework
+          key: raahat-libbox-ios-1.14.4-go1.26-gomobile0.1.13-iphoneos-simulator
       - name: Link the pinned Libbox framework into the Packet Tunnel target
         run: |
           mkdir -p clients/ios/Frameworks
