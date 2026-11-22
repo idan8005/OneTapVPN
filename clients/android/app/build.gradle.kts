@@ -30,7 +30,7 @@ android {
 
     if (hasReleaseSigning) {
         signingConfigs {
-            create("release") {
+            create("persistent") {
                 storeFile = file(requireNotNull(releaseKeystorePath))
                 storePassword = requireNotNull(releaseStorePassword)
                 keyAlias = requireNotNull(releaseKeyAlias)
@@ -42,10 +42,15 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("persistent")
+            }
+        }
         getByName("release") {
             isMinifyEnabled = false
             if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
+                signingConfig = signingConfigs.getByName("persistent")
             }
         }
     }
