@@ -119,6 +119,8 @@ jobs:
           EXT_PROFILE_NAME="$(profile_value "$EXT_PLIST" ':Name')"
           APP_PROFILE_UUID="$(profile_value "$APP_PLIST" ':UUID')"
           EXT_PROFILE_UUID="$(profile_value "$EXT_PLIST" ':UUID')"
+          APP_PROVISIONED_DEVICES="$(profile_value "$APP_PLIST" ':ProvisionedDevices')"
+          EXT_PROVISIONED_DEVICES="$(profile_value "$EXT_PLIST" ':ProvisionedDevices')"
           APP_GROUPS="$(profile_value "$APP_PLIST" ':Entitlements:com.apple.security.application-groups')"
           EXT_GROUPS="$(profile_value "$EXT_PLIST" ':Entitlements:com.apple.security.application-groups')"
           EXT_NETWORK_ENTITLEMENTS="$(profile_value "$EXT_PLIST" ':Entitlements:com.apple.developer.networking.networkextension')"
@@ -126,6 +128,7 @@ jobs:
           [[ "$APP_TEAM" == "$TEAM_ID" && "$EXT_TEAM" == "$TEAM_ID" ]] || { echo "Provisioning profile Team ID mismatch." >&2; exit 1; }
           [[ "$APP_IDENTIFIER" == "$APP_PREFIX.com.raahat.vpn" ]] || { echo "App provisioning profile must match com.raahat.vpn." >&2; exit 1; }
           [[ "$EXT_IDENTIFIER" == "$EXT_PREFIX.com.raahat.vpn.packet-tunnel" ]] || { echo "Extension provisioning profile must match com.raahat.vpn.packet-tunnel." >&2; exit 1; }
+          [[ "$APP_PROVISIONED_DEVICES" == *"Array"* && "$EXT_PROVISIONED_DEVICES" == *"Array"* ]] || { echo "Both development profiles must include registered iPhone devices." >&2; exit 1; }
           [[ "$APP_GROUPS" == *"group.com.raahat.vpn"* && "$EXT_GROUPS" == *"group.com.raahat.vpn"* ]] || { echo "Both profiles must include App Group group.com.raahat.vpn." >&2; exit 1; }
           [[ "$EXT_NETWORK_ENTITLEMENTS" == *"packet-tunnel-provider"* ]] || { echo "Extension profile must include the packet-tunnel-provider Network Extension entitlement." >&2; exit 1; }
 
