@@ -86,6 +86,7 @@ class RaahatVpnService : VpnService() {
 
     private val worker = Executors.newSingleThreadExecutor()
     private val tunOpened = AtomicBoolean(false)
+    private val engineStopped = AtomicBoolean(true)
     private var tunDescriptor: ParcelFileDescriptor? = null
     private var commandServer: CommandServer? = null
     private var activeConfig: String = ""
@@ -105,6 +106,7 @@ class RaahatVpnService : VpnService() {
                     stopSelf(startId)
                     return Service.START_NOT_STICKY
                 }
+                engineStopped.set(false)
                 activeConfig = config
                 saveState(this, ConnectionState.CONNECTING, "در حال برقراری تونل امن…")
                 startAsForeground("در حال اتصال به سرور…")
@@ -260,6 +262,7 @@ class RaahatVpnService : VpnService() {
     }
 
     private fun stopEngine(state: ConnectionState, message: String?) {
+        if (!engineStopped.compareAndSet(false, true)) return
         runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
         commandServer = null
@@ -286,7 +289,9 @@ class RaahatVpnService : VpnService() {
 
     override fun onDestroy() {
         if (!worker.isShutdown) {
-            runCatching { worker.execute { stopEngine(ConnectionState.DISCONNECTED, null) } }
+            if (!engineStopped.get()) {
+                runCatching { worker.execute { stopEngine(ConnectionState.DISCONNECTED, null) } }
+            }
             worker.shutdown()
         }
         super.onDestroy()
