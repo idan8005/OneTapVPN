@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827"><meta name="description" content="همراه وب راحت وی‌پی‌ان برای آماده‌سازی امن پروفایل‌های VPN روی iPhone">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>راحت وی‌پی‌ان | همراه آیفون</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d30;--line:#27364d;--muted:#9aabc1;--text:#f3f6fb;--accent:#65d6b0;--warn:#f4c46b}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#0b1220,#14243a);color:var(--text);font:16px system-ui,-apple-system,sans-serif;min-height:100vh}
+main{width:min(760px,100%);margin:auto;padding:28px 18px 48px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}.brand img{width:48px;height:48px}.brand h1{font-size:22px;margin:0}.sub,.muted{color:var(--muted);font-size:14px}.card{background:#121d30ed;border:1px solid var(--line);border-radius:20px;padding:20px;margin:16px 0;box-shadow:0 12px 34px #0003}.card h2{font-size:18px;margin:0 0 8px}.pill{display:inline-block;color:var(--accent);font-size:12px;border:1px solid #2b695a;border-radius:30px;padding:4px 9px;margin-bottom:10px}label{display:block;font-weight:600;margin:14px 0 7px}input,textarea{width:100%;border:1px solid #3a4c65;background:#0c1728;color:white;border-radius:12px;padding:13px;font:inherit}textarea{min-height:108px;direction:ltr;text-align:left;resize:vertical}input[type=file]{padding:10px}button,.button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#082018;font-weight:700;font:inherit;text-decoration:none;cursor:pointer;margin:8px 0 0 6px}button.secondary,.button.secondary{background:#263750;color:white;border:1px solid #40536d}.status{padding:12px;border-radius:12px;background:#0b1728;border:1px solid var(--line);margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}.warning{border-color:#705b30;color:#ffdda0}.success{border-color:#28614f;color:#9bf0ce}.hidden{display:none}.actions{display:flex;flex-wrap:wrap;gap:4px}.small{font-size:12px;color:var(--muted);line-height:1.8}.footer{padding:12px 4px;color:var(--muted);font-size:12px;line-height:1.9}a{color:#8dddc6}
+</style>
+</head>
+<body><main>
+<header class="brand"><img src="./icon.svg" alt="لوگوی راحت وی‌پی‌ان"><div><h1>راحت وی‌پی‌ان</h1><div class="sub">همراه وب آیفون · نسخه آزمایشی 0.1.0</div></div></header>
+<section class="card"><span class="pill">آماده‌سازی پروفایل روی iPhone</span><h2>پروفایل OpenVPN را وارد کن</h2><p class="muted">فایل ‎.ovpn را انتخاب کن. این صفحه ساختار پایه و وابستگی‌های خارجی پروفایل را بررسی می‌کند و سپس فایل را برای OpenVPN Connect آماده می‌کند.</p>
+<label for="ovpn">انتخاب فایل ‎.ovpn</label><input id="ovpn" type="file" accept=".ovpn,text/plain">
+<div id="ovpnStatus" class="status" aria-live="polite">هنوز فایلی انتخاب نشده است.</div>
+<div class="actions"><button id="shareOvpn" disabled>ارسال به OpenVPN Connect</button><button id="saveOvpn" class="secondary" disabled>ذخیره فایل</button></div>
+<p class="small">پروفایل فقط در حافظه همین صفحه خوانده می‌شود و روی سرور یا فضای ذخیره‌سازی مرورگر ذخیره نمی‌شود. قبل از واردکردن، منبع فایل را بررسی کن.</p></section>
+<section class="card"><span class="pill">VLESS / REALITY</span><h2>بازکردن لینک در Hiddify</h2><p class="muted">لینک یک سرور یا لینک اشتراک را وارد کن. این بخش فقط لینک‌های VLESS را آماده می‌کند و تونل VPN را خودش اجرا نمی‌کند.</p>
+<label for="vless">لینک VLESS</label><textarea id="vless" placeholder="vless://..." autocomplete="off" spellcheck="false"></textarea>
+<div class="actions"><button id="openHiddify">بازکردن در Hiddify</button><button id="copyVless" class="secondary">کپی لینک</button></div><div id="vlessStatus" class="status" aria-live="polite">لینک را وارد کن.</div></section>
+<section class="card"><h2>راهنمای نصب</h2><ol><li>برای ‎.ovpn، برنامه OpenVPN Connect را از App Store نصب کن.</li><li>برای VLESS، در صورت موجودبودن در منطقه حساب Apple، Hiddify را نصب کن.</li><li>پس از واردکردن پروفایل، درخواست iOS برای افزودن VPN را بررسی و تأیید کن.</li></ol><p class="small">این همراه وب، نسخه مستقل VPN نیست. تونل را برنامه OpenVPN Connect یا Hiddify اجرا می‌کند. سرورهای عمومی ممکن است ناپایدار باشند یا ترافیک را ثبت کنند؛ برای اطلاعات حساس از آن‌ها استفاده نکن.</p></section>
+<footer class="footer">Raahat VPN · همراه وب آزمایشی · اطلاعات اتصال در این صفحه ذخیره یا به سرور ارسال نمی‌شود.<br><a href="https://github.com/idan8005/OneTapVPN">مخزن رسمی پروژه</a> · <a href="https://www.vpngate.net/en/">VPN Gate</a> · <a href="https://openvpn.net/connect-docs/import-profile/">راهنمای OpenVPN</a></footer>
+</main><script src="./app.js" defer></script></body></html>
