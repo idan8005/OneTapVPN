@@ -59,8 +59,13 @@ internal class EncryptedVpnConfigStore(context: Context) {
 
     @Synchronized
     fun load(): String? {
-        val ivText = preferences.getString(KEY_IV, null) ?: return null
-        val ciphertextText = preferences.getString(KEY_CIPHERTEXT, null) ?: return null
+        val ivText = preferences.getString(KEY_IV, null)
+        val ciphertextText = preferences.getString(KEY_CIPHERTEXT, null)
+        if (ivText == null && ciphertextText == null) return null
+        if (ivText.isNullOrBlank() || ciphertextText.isNullOrBlank()) {
+            clear()
+            return null
+        }
         return try {
             val blob = EncryptedConfigBlob(
                 iv = Base64.decode(ivText, Base64.NO_WRAP),
