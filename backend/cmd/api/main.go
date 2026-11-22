@@ -37,7 +37,7 @@ func run() error {
 		return err
 	}
 
-	address := envOr("RAAHAT_LISTEN_ADDR", "127.0.0.1:8080")
+	address := listenAddress()
 	certFile := os.Getenv("RAAHAT_TLS_CERT_FILE")
 	keyFile := os.Getenv("RAAHAT_TLS_KEY_FILE")
 	allowProxyHTTP := strings.EqualFold(os.Getenv("RAAHAT_TLS_TERMINATED_BY_PROXY"), "true")
@@ -118,6 +118,16 @@ func refreshVPNGateUntilStopped(ctx context.Context, repository *catalog.Memory)
 			refresh()
 		}
 	}
+}
+
+func listenAddress() string {
+	if configured := strings.TrimSpace(os.Getenv("RAAHAT_LISTEN_ADDR")); configured != "" {
+		return configured
+	}
+	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+		return net.JoinHostPort("0.0.0.0", port)
+	}
+	return "127.0.0.1:8080"
 }
 
 func envOr(key, fallback string) string {
