@@ -381,12 +381,12 @@ class RaahatVpnService : VpnService() {
                     val exclude4 = options.inet4RouteExcludeAddress
                     while (exclude4.hasNext()) {
                         val prefix = exclude4.next()
-                        builder.excludeRoute(android.net.IpPrefix(prefix.address(), prefix.prefix()))
+                        builder.excludeRoute(android.net.IpPrefix(prefix.address() + "/" + prefix.prefix()))
                     }
                     val exclude6 = options.inet6RouteExcludeAddress
                     while (exclude6.hasNext()) {
                         val prefix = exclude6.next()
-                        builder.excludeRoute(android.net.IpPrefix(prefix.address(), prefix.prefix()))
+                        builder.excludeRoute(android.net.IpPrefix(prefix.address() + "/" + prefix.prefix()))
                     }
                 }
 
@@ -459,7 +459,7 @@ class RaahatVpnService : VpnService() {
                     mtu = runCatching { iface.mtu }.getOrDefault(1500)
                     this.addresses = StringArray(addresses)
                     dnsServer = StringArray(link.dnsServers.mapNotNull { it.hostAddress })
-                    dnsSearchDomain = StringArray(link.domains?.split(' ')?.filter { it.isNotBlank() }.orEmpty())
+                    
                     gateway = StringArray(gateways)
                     type = when {
                         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Libbox.InterfaceTypeWIFI
