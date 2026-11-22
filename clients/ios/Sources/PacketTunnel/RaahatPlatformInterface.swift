@@ -44,8 +44,8 @@ final class RaahatPlatformInterface: NSObject,
         var dnsServers: [String] = []
         if options.getDNSMode()?.value != LibboxDNSModeDisabled {
             let iterator = try options.getDNSServerAddress()
-            while iterator?.hasNext() == true {
-                if let address = iterator?.next(), !address.isEmpty {
+            while iterator.hasNext() {
+                if let address = iterator.next(), !address.isEmpty {
                     dnsServers.append(address)
                 }
             }
