@@ -1,36 +1,131 @@
 <Window x:Class="RaahatVPN.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Raahat VPN" Height="540" Width="420"
-        MinHeight="500" MinWidth="360"
+        Title="Raahat VPN"
+        Height="720" Width="520"
+        MinHeight="650" MinWidth="420"
         FlowDirection="RightToLeft"
         WindowStartupLocation="CenterScreen"
-        Background="#101827">
-    <Grid Margin="28">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="راحت وی‌پی‌ان" Foreground="White"
-                       FontSize="30" FontWeight="Bold"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="اتصال امن و ساده" Foreground="#AFC0D7"
-                       FontSize="16" Margin="0,8,0,30"
-                       HorizontalAlignment="Center" />
-            <Border Background="#1C2A3D" CornerRadius="18" Padding="24">
-                <StackPanel HorizontalAlignment="Center">
+        Background="#101827"
+        Foreground="#F3F6FB">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="28">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,10,0,22">
+                <TextBlock Text="راحت وی‌پی‌ان"
+                           FontSize="31" FontWeight="Bold"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="اتصال امن و ساده در ویندوز"
+                           Foreground="#AFC0D7" FontSize="15"
+                           Margin="0,6,0,0"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <Border Grid.Row="1" Background="#1C2A3D"
+                    CornerRadius="18" Padding="22" Margin="0,0,0,18">
+                <StackPanel>
                     <TextBlock Text="وضعیت اتصال" Foreground="#AFC0D7"
                                HorizontalAlignment="Center" />
-                    <TextBlock Text="قطع است" Foreground="White"
-                               FontSize="25" FontWeight="SemiBold"
-                               Margin="0,8,0,12" HorizontalAlignment="Center" />
-                    <TextBlock Text="موتور VPN هنوز به این نسخه متصل نشده است."
+                    <TextBlock x:Name="StatusTextBlock" Text="قطع است"
+                               Foreground="#F3F6FB" FontSize="25"
+                               FontWeight="SemiBold" Margin="0,8,0,8"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="StatusDetailTextBlock"
+                               Text="برای شروع، لینک سرور VLESS + REALITY را وارد کنید."
                                Foreground="#C8D5E5" TextWrapping="Wrap"
-                               TextAlignment="Center" MaxWidth="290" />
+                               TextAlignment="Center" />
+                    <TextBlock x:Name="ExitIpTextBlock" Text=""
+                               Foreground="#8EC5FF" Margin="0,10,0,0"
+                               HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>
-            <Button Content="اتصال" IsEnabled="False"
-                    Width="180" Height="48" Margin="0,24,0,0"
-                    FontSize="16" />
-            <TextBlock Text="نسخه 0.1.0-dev" Foreground="#8496AD"
-                       Margin="0,24,0,0" HorizontalAlignment="Center" />
-        </StackPanel>
-    </Grid>
+
+            <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                <TextBlock Text="لینک سرور" FontWeight="SemiBold"
+                           FontSize="16" Margin="0,0,0,8" />
+                <TextBlock Text="در این نسخه، لینک VLESS + REALITY با انتقال TCP را وارد کنید."
+                           Foreground="#AFC0D7" TextWrapping="Wrap"
+                           Margin="0,0,0,8" />
+                <TextBox x:Name="ServerLinkTextBox"
+                         Height="112"
+                         Padding="12"
+                         FontSize="13"
+                         FlowDirection="LeftToRight"
+                         TextAlignment="Left"
+                         VerticalContentAlignment="Top"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         MaxLength="8192"
+                         Background="#172438"
+                         Foreground="#F3F6FB"
+                         BorderBrush="#3B526E"
+                         CaretBrush="White"
+                         SelectionBrush="#355C88" />
+            </StackPanel>
+
+            <Grid Grid.Row="3" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="ConnectButton" Grid.Column="0"
+                        Content="اتصال"
+                        Click="ConnectButton_Click"
+                        Height="48" FontSize="16" FontWeight="SemiBold"
+                        Background="#1F9D72" Foreground="White"
+                        BorderThickness="0" />
+                <Button x:Name="DisconnectButton" Grid.Column="2"
+                        Content="قطع اتصال"
+                        Click="DisconnectButton_Click"
+                        Height="48" FontSize="16"
+                        IsEnabled="False"
+                        Background="#35465C" Foreground="White"
+                        BorderThickness="0" />
+            </Grid>
+
+            <Border Grid.Row="4" Background="#18283B" CornerRadius="12"
+                    Padding="15" Margin="0,18,0,0">
+                <StackPanel>
+                    <TextBlock Text="حالت شبکه" FontWeight="SemiBold"
+                               Margin="0,0,0,7" />
+                    <TextBlock Text="Full Tunnel فعال است؛ شبکه‌های خصوصی محلی برای دسترسی به دستگاه‌های داخل LAN مستثنا هستند."
+                               Foreground="#C8D5E5" TextWrapping="Wrap" />
+                    <TextBlock Text="برای ساخت رابط TUN، ویندوز درخواست مجوز مدیر (UAC) می‌کند."
+                               Foreground="#E6C98B" TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="5" Background="#18283B" CornerRadius="12"
+                    Padding="15" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="محدودیت‌های این نسخه" FontWeight="SemiBold"
+                               Margin="0,0,0,7" />
+                    <TextBlock Text="Kill Switch ویندوز، انتخاب برنامه‌ها و سرور‌یابی خودکار هنوز پیاده‌سازی نشده‌اند. اگر موتور متوقف شود، مسیر VPN نیز ممکن است حذف شود."
+                               Foreground="#C8D5E5" TextWrapping="Wrap" />
+                    <TextBlock Text="برای تأیید خروجی IPv4، یک درخواست HTTPS به api.ipify.org ارسال می‌شود؛ این سرویس بیرونی ممکن است IP خروجی را مشاهده کند."
+                               Foreground="#AFC0D7" TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Row="6"
+                       Text="نسخه 0.2.0-dev  ·  موتور sing-box 1.14.4"
+                       Foreground="#8496AD"
+                       Margin="0,22,0,8"
+                       HorizontalAlignment="Center" />
+        </Grid>
+    </ScrollViewer>
 </Window>
