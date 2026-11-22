@@ -1,0 +1,6 @@
+// Signing for the containing iOS app. Values are provided only by the
+// dedicated GitHub Actions signing workflow; never commit certificate material.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Apple Development
+DEVELOPMENT_TEAM = $(RAAHAT_IOS_TEAM_ID)
+PROVISIONING_PROFILE_SPECIFIER = $(RAAHAT_IOS_APP_PROFILE)
