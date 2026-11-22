@@ -134,7 +134,7 @@ async function shareProfile(){
 }
 function downloadProfile(){if(!profileFile)return;const url=URL.createObjectURL(profileFile);const a=document.createElement("a");a.href=url;a.download=profileFile.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 $("shareOvpn").addEventListener("click",shareProfile);$("saveOvpn").addEventListener("click",downloadProfile);
-function getVless(){const s=$("vless").value.trim();if(!/^vless:\/\/[0-9a-f-]{36}@[^^\s#]+/i.test(s))throw new Error("لینک VLESS معتبر وارد کن.");return s;}
+function getVless(){const s=$("vless").value.trim();if(!/^vless:\/\/[0-9a-f-]{36}@[^\s#]+/i.test(s))throw new Error("لینک VLESS معتبر وارد کن.");return s;}
 $("openHiddify").addEventListener("click",()=>{try{const s=getVless();setStatus("vlessStatus","لینک آماده است. اگر Hiddify نصب و scheme آن فعال باشد، برنامه باز می‌شود.","success");location.href="hiddify://import/"+encodeURIComponent(s)+"#Raahat";}catch(e){setStatus("vlessStatus",e.message,"warning");}});
 $("copyVless").addEventListener("click",async()=>{try{const s=getVless();await navigator.clipboard.writeText(s);setStatus("vlessStatus","لینک کپی شد. آن را در Hiddify وارد کن.","success");}catch(e){setStatus("vlessStatus",e.message||"کپی انجام نشد.","warning");}});
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
