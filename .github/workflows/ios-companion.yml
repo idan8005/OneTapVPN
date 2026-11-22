@@ -28,6 +28,9 @@ jobs:
           test -s clients/ios-companion/index.html
           test -s clients/ios-companion/sw.js
           test -s clients/ios-companion/icon.svg
+      - name: Validate live catalogue integration contract
+        run: |
+          node -e 'const fs=require("fs"); const html=fs.readFileSync("clients/ios-companion/index.html","utf8"); const js=fs.readFileSync("clients/ios-companion/app.js","utf8"); for(const id of ["apiBase","loadServers","catalogueStatus","serverList"]) if(!html.includes('id="'+id+'"')) throw new Error("Missing UI element: "+id); for(const required of ["/api/v1/servers","credentials:\\"omit\\"","cache:\\"no-store\\"","verification_level!==\\"tcp-reachable\\""]) if(!js.includes(required)) throw new Error("Missing catalogue safety rule: "+required)'
       - name: Package static companion
         run: |
           cd clients
