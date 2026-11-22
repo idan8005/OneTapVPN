@@ -75,6 +75,8 @@ internal object TunnelHealthPolicy {
             a == 198 && b in 18..19 -> false
             a == 198 && b == 51 && c == 100 -> false
             a == 203 && b == 0 && c == 113 -> false
+            a == 198 && b == 51 && c == 100 -> false
+            a == 203 && b == 0 && c == 113 -> false
             else -> true
         }
     }
