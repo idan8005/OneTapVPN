@@ -81,17 +81,20 @@ jobs:
           RAAHAT_ANDROID_KEY_ALIAS: ${{ secrets.RAAHAT_ANDROID_KEY_ALIAS }}
           RAAHAT_ANDROID_KEY_PASSWORD: ${{ secrets.RAAHAT_ANDROID_KEY_PASSWORD }}
         run: gradle :app:assembleRelease
-      - name: Verify release APK signature
+      - name: Verify release APK signatures
         if: steps.signing.outputs.ready == 'true'
         shell: bash
         run: |
-          APK="clients/android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          if [[ ! -f "$APK" ]]; then
-            APK="clients/android/app/build/outputs/apk/release/app-release.apk"
+          shopt -s nullglob
+          APKS=(clients/android/app/build/outputs/apk/release/*.apk)
+          if [[ ${#APKS[@]} -eq 0 ]]; then
+            echo "No release APKs were produced." >&2
+            exit 1
           fi
-          test -f "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-      - name: Upload persistent-signed release APK
+          for APK in "${APKS[@]}"; do
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          done
+      - name: Upload persistent-signed release APKs
         if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
