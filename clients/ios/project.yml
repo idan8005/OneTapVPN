@@ -35,6 +35,8 @@ targets:
     dependencies:
       - framework: Frameworks/Libbox.xcframework
         embed: false
+      - sdk: UIKit.framework
+      - sdk: libresolv.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.raahat.vpn.packet-tunnel
