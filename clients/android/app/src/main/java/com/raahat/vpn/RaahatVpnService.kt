@@ -381,12 +381,12 @@ class RaahatVpnService : VpnService() {
                     val exclude4 = options.inet4RouteExcludeAddress
                     while (exclude4.hasNext()) {
                         val prefix = exclude4.next()
-                        builder.excludeRoute(android.net.IpPrefix(prefix.address() + "/" + prefix.prefix()))
+                        builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(prefix.address()), prefix.prefix()))
                     }
                     val exclude6 = options.inet6RouteExcludeAddress
                     while (exclude6.hasNext()) {
                         val prefix = exclude6.next()
-                        builder.excludeRoute(android.net.IpPrefix(prefix.address() + "/" + prefix.prefix()))
+                        builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(prefix.address()), prefix.prefix()))
                     }
                 }
 
