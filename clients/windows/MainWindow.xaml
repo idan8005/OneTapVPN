@@ -40,7 +40,7 @@
                                FontWeight="SemiBold" Margin="0,8,0,8"
                                HorizontalAlignment="Center" />
                     <TextBlock x:Name="StatusDetailTextBlock"
-                               Text="برای شروع، یک یا چند لینک پشتیبان VLESS + REALITY را وارد کنید."
+                               Text="برای اتصال خودکار، کادر سرور را خالی بگذارید. برنامه فهرست رایگان را دریافت می‌کند؛ یا می‌توانید لینک‌های پشتیبان خودتان را وارد کنید."
                                Foreground="#C8D5E5" TextWrapping="Wrap"
                                TextAlignment="Center" />
                     <TextBlock x:Name="ExitIpTextBlock" Text=""
@@ -52,7 +52,7 @@
             <StackPanel Grid.Row="2" Margin="0,0,0,12">
                 <TextBlock Text="لینک سرور و پشتیبان‌ها" FontWeight="SemiBold"
                            FontSize="16" Margin="0,0,0,8" />
-                <TextBlock Text="یک لینک VLESS + REALITY با انتقال TCP وارد کنید؛ برای پشتیبان، حداکثر ۵ لینک را هرکدام در یک خط جدا بنویسید. برنامه به‌ترتیب امتحان می‌کند و فقط سروری را نگه می‌دارد که خروجی IPv4 آن تأیید شود."
+                <TextBlock Text="اگر کادر خالی باشد، برنامه فهرست عمومی را خودکار دریافت می‌کند و فقط لینک‌های VLESS + REALITY + TCP را برمی‌گزیند. برای ورود دستی، حداکثر ۵ لینک را هرکدام در یک خط جدا بنویسید. اتصال واقعی هر سرور روی همین دستگاه آزمایش می‌شود."
                            Foreground="#AFC0D7" TextWrapping="Wrap"
                            Margin="0,0,0,8" />
                 <TextBox x:Name="ServerLinkTextBox"
@@ -113,7 +113,7 @@
                 <StackPanel>
                     <TextBlock Text="محدودیت‌های این نسخه" FontWeight="SemiBold"
                                Margin="0,0,0,7" />
-                    <TextBlock Text="سروریابی خودکار هنوز پیاده‌سازی نشده است؛ لینک‌های پشتیبان باید از قبل در اختیار شما باشند. Kill Switch ویندوز و انتخاب برنامه‌ها نیز هنوز آماده نیستند."
+                    <TextBlock Text="سرورهای رایگان از یک منبع عمومی و متعلق به اشخاص ثالث دریافت می‌شوند؛ ممکن است ناپایدار باشند یا ترافیک را ثبت کنند. Kill Switch ویندوز و انتخاب برنامه‌ها هنوز پیاده‌سازی نشده‌اند."
                                Foreground="#C8D5E5" TextWrapping="Wrap" />
                     <TextBlock Text="برای تأیید خروجی IPv4، یک درخواست HTTPS به api.ipify.org ارسال می‌شود؛ این سرویس بیرونی ممکن است IP خروجی را مشاهده کند."
                                Foreground="#AFC0D7" TextWrapping="Wrap"
@@ -122,7 +122,7 @@
             </Border>
 
             <TextBlock Grid.Row="6"
-                       Text="نسخه 0.2.1-dev  ·  موتور sing-box 1.14.4"
+                       Text="نسخه 0.2.2-dev  ·  موتور sing-box 1.14.4"
                        Foreground="#8496AD"
                        Margin="0,22,0,8"
                        HorizontalAlignment="Center" />

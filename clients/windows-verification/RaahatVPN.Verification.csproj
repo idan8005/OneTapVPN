@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../windows/VlessRealityProfile.cs" Link="VlessRealityProfile.cs" />
     <Compile Include="../windows/VlessCandidateList.cs" Link="VlessCandidateList.cs" />
+    <Compile Include="../windows/PublicVlessFeedClient.cs" Link="PublicVlessFeedClient.cs" />
   </ItemGroup>
 </Project>

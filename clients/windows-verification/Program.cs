@@ -58,6 +58,30 @@ MustRejectCandidateList(
         .Select(index => validLink.Replace("example.com", $"relay-{index}.example.com", StringComparison.Ordinal))),
     "more than five candidate links");
 
+var mixedPublicFeed = string.Join(Environment.NewLine, new[]
+{
+    "# Public feed header",
+    validLink,
+    validLink,
+    validLink.Replace("type=tcp", "type=grpc", StringComparison.Ordinal),
+    validLink.Replace("security=reality", "security=tls", StringComparison.Ordinal),
+    validLink.Replace(
+        "pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "pbk=invalid",
+        StringComparison.Ordinal),
+    "vless://not-a-valid-profile"
+});
+var filteredPublicFeed = PublicVlessFeedClient.FilterSupportedCandidates(mixedPublicFeed);
+Require(filteredPublicFeed.Count == 1, "Public feed filter accepted unsupported or duplicate profiles.");
+Require(filteredPublicFeed[0] == validLink, "Public feed filter changed a valid share link.");
+
+var manyPublicCandidates = string.Join(Environment.NewLine,
+    Enumerable.Range(0, 8).Select(index =>
+        validLink.Replace("example.com", "relay-" + index + ".example.com", StringComparison.Ordinal)));
+var limitedPublicFeed = PublicVlessFeedClient.FilterSupportedCandidates(manyPublicCandidates);
+Require(limitedPublicFeed.Count == VlessCandidateList.MaximumCandidates,
+    "Public feed filter did not enforce the five-candidate connection limit.");
+
 var profile = VlessRealityProfile.Parse(validLink);
 Require(profile.Server == "example.com", "Server hostname parsing failed.");
 Require(profile.ServerPort == 443, "Server port parsing failed.");
@@ -134,6 +158,7 @@ finally
 
 Console.WriteLine("Windows VLESS Reality parsing tests: PASS");
 Console.WriteLine("Windows backup candidate-list parsing and limits: PASS");
+Console.WriteLine("Public feed filtering, compatibility checks and candidate limit: PASS");
 Console.WriteLine("Generated Full Tunnel + strict routing + DoH config: PASS");
 Console.WriteLine("Pinned sing-box configuration validation: PASS");
 return 0;

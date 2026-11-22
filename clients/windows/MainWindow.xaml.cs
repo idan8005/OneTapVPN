@@ -19,14 +19,35 @@ public partial class MainWindow : Window
     {
         ConnectButton.IsEnabled = false;
         DisconnectButton.IsEnabled = false;
-        StatusTextBlock.Text = "در حال راه‌اندازی تونل...";
+        StatusTextBlock.Text = "در حال آماده‌سازی اتصال...";
         StatusTextBlock.Foreground = Brushes.White;
-        StatusDetailTextBlock.Text = "لینک‌ها به‌ترتیب بررسی می‌شوند؛ فقط خروجی IPv4 تأییدشده پذیرفته می‌شود.";
+        StatusDetailTextBlock.Text = string.Empty;
         ExitIpTextBlock.Text = string.Empty;
 
         try
         {
-            var result = await _tunnel.ConnectBestAsync(ServerLinkTextBox.Text);
+            var candidateText = ServerLinkTextBox.Text;
+            if (string.IsNullOrWhiteSpace(candidateText))
+            {
+                StatusTextBlock.Text = "در حال دریافت سرورهای رایگان...";
+                StatusDetailTextBlock.Text =
+                    "فهرست عمومی دریافت می‌شود و فقط لینک‌های سازگار با VLESS + REALITY + TCP نگه داشته می‌شوند.";
+
+                using var feedClient = new PublicVlessFeedClient();
+                var candidates = await feedClient.FetchCandidatesAsync();
+                candidateText = string.Join(Environment.NewLine, candidates);
+                ServerLinkTextBox.Text = candidateText;
+
+                StatusDetailTextBlock.Text =
+                    candidates.Count.ToString() +
+                    " سرور سازگار دریافت شد؛ اتصال هرکدام روی همین دستگاه بررسی می‌شود.";
+            }
+
+            StatusTextBlock.Text = "در حال آزمایش و اتصال...";
+            StatusDetailTextBlock.Text =
+                "سرورها به‌ترتیب امتحان می‌شوند؛ فقط خروجی واقعی IPv4 که از تونل عبور کند پذیرفته می‌شود.";
+
+            var result = await _tunnel.ConnectBestAsync(candidateText);
             StatusTextBlock.Text = result.EgressVerified
                 ? "خروجی VPN تأیید شد"
                 : "تونل فعال؛ اتصال تأییدنشده";
@@ -38,11 +59,11 @@ public partial class MainWindow : Window
             if (result.OriginalPublicIp is not null && result.TunnelPublicIp is not null)
             {
                 ExitIpTextBlock.Text =
-                    $"IP قبل: {result.OriginalPublicIp}    ←    IP تونل: {result.TunnelPublicIp}";
+                    "IP قبل: " + result.OriginalPublicIp + "    ←    IP تونل: " + result.TunnelPublicIp;
             }
             else if (result.TunnelPublicIp is not null)
             {
-                ExitIpTextBlock.Text = $"IP خروجی فعلی: {result.TunnelPublicIp}";
+                ExitIpTextBlock.Text = "IP خروجی فعلی: " + result.TunnelPublicIp;
             }
         }
         catch (Exception ex)
