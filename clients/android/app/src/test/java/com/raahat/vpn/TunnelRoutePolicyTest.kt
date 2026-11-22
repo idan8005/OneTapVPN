@@ -6,17 +6,20 @@ import org.junit.Test
 
 class TunnelRoutePolicyTest {
     @Test
-    fun addsIpv6DefaultRouteWhenAutoRouteHasNoDefault() {
+    fun addsMissingDefaultRoutesForBothFamiliesWhenAutoRouteIsEnabled() {
+        assertTrue(TunnelRoutePolicy.shouldAddIpv4DefaultRoute(true, false))
         assertTrue(TunnelRoutePolicy.shouldAddIpv6DefaultRoute(true, false))
     }
 
     @Test
-    fun doesNotDuplicateExistingIpv6DefaultRoute() {
+    fun doesNotDuplicateExistingDefaultRoutes() {
+        assertFalse(TunnelRoutePolicy.shouldAddIpv4DefaultRoute(true, true))
         assertFalse(TunnelRoutePolicy.shouldAddIpv6DefaultRoute(true, true))
     }
 
     @Test
-    fun doesNotAddIpv6RouteWhenAutoRouteIsDisabled() {
+    fun doesNotAddRoutesWhenAutoRouteIsDisabled() {
+        assertFalse(TunnelRoutePolicy.shouldAddIpv4DefaultRoute(false, false))
         assertFalse(TunnelRoutePolicy.shouldAddIpv6DefaultRoute(false, false))
     }
 
@@ -25,7 +28,14 @@ class TunnelRoutePolicyTest {
         assertTrue(TunnelRoutePolicy.isIpv6DefaultRoute("::", 0))
         assertTrue(TunnelRoutePolicy.isIpv6DefaultRoute("0:0:0:0:0:0:0:0", 0))
         assertFalse(TunnelRoutePolicy.isIpv6DefaultRoute("::", 1))
-        assertFalse(TunnelRoutePolicy.isIpv6DefaultRoute("0.0.0.0", 0))
         assertFalse(TunnelRoutePolicy.isIpv6DefaultRoute("2001:db8::", 0))
+    }
+
+    @Test
+    fun recognizesOnlyIpv4ZeroPrefixAsIpv4DefaultRoute() {
+        assertTrue(TunnelRoutePolicy.isIpv4DefaultRoute("0.0.0.0", 0))
+        assertFalse(TunnelRoutePolicy.isIpv4DefaultRoute("0.0.0.0", 1))
+        assertFalse(TunnelRoutePolicy.isIpv4DefaultRoute("192.0.2.0", 0))
+        assertFalse(TunnelRoutePolicy.isIpv4DefaultRoute("::", 0))
     }
 }

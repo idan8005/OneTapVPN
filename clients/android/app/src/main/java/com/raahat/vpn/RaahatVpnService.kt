@@ -397,19 +397,38 @@ class RaahatVpnService : VpnService() {
                     while (dns.hasNext()) builder.addDnsServer(dns.next())
                 }
 
-                val route4 = options.inet4RouteAddress
-                if (route4.hasNext()) {
+                var hasIpv4DefaultRoute = false
+                var hasIpv6DefaultRoute = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val route4 = options.inet4RouteAddress
                     while (route4.hasNext()) {
                         val prefix = route4.next()
                         builder.addRoute(prefix.address(), prefix.prefix())
+                        if (TunnelRoutePolicy.isIpv4DefaultRoute(prefix.address(), prefix.prefix())) {
+                            hasIpv4DefaultRoute = true
+                        }
                     }
-                } else if (options.inet4Address.hasNext()) {
-                    builder.addRoute("0.0.0.0", 0)
-                }
 
-                val route6 = options.inet6RouteAddress
-                var hasIpv6DefaultRoute = false
-                if (route6.hasNext()) {
+                    val route6 = options.inet6RouteAddress
+                    while (route6.hasNext()) {
+                        val prefix = route6.next()
+                        builder.addRoute(prefix.address(), prefix.prefix())
+                        if (TunnelRoutePolicy.isIpv6DefaultRoute(prefix.address(), prefix.prefix())) {
+                            hasIpv6DefaultRoute = true
+                        }
+                    }
+                } else {
+                    // Older Android releases require the range iterators provided by libbox.
+                    val route4 = options.inet4RouteRange
+                    while (route4.hasNext()) {
+                        val prefix = route4.next()
+                        builder.addRoute(prefix.address(), prefix.prefix())
+                        if (TunnelRoutePolicy.isIpv4DefaultRoute(prefix.address(), prefix.prefix())) {
+                            hasIpv4DefaultRoute = true
+                        }
+                    }
+
+                    val route6 = options.inet6RouteRange
                     while (route6.hasNext()) {
                         val prefix = route6.next()
                         builder.addRoute(prefix.address(), prefix.prefix())
@@ -419,9 +438,12 @@ class RaahatVpnService : VpnService() {
                     }
                 }
 
-                // Raahat currently uses full-tunnel mode. A partial IPv6 route from
-                // the engine must never leave the remaining IPv6 destinations on
-                // Android's physical network. Exclusions are applied below.
+                // Full tunnel: ensure both families have a system default route to
+                // this TUN, even when sing-box only reports partial route prefixes.
+                // Android route exclusions are applied below on API 33+.
+                if (TunnelRoutePolicy.shouldAddIpv4DefaultRoute(options.autoRoute, hasIpv4DefaultRoute)) {
+                    builder.addRoute("0.0.0.0", 0)
+                }
                 if (TunnelRoutePolicy.shouldAddIpv6DefaultRoute(options.autoRoute, hasIpv6DefaultRoute)) {
                     builder.addRoute("::", 0)
                 }

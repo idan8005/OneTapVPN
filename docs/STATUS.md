@@ -16,7 +16,7 @@ Updated: 2026-11-22
 - Relays that fail a real connection attempt are locally hidden and excluded from automatic selection for a 15-minute cooldown; only a stable server ID and timestamp are persisted.
 - The complete sing-box configuration is checked by libbox before starting the tunnel.
 - The app checks DNS resolution, IPv4 HTTPS egress and IPv6 HTTPS reachability separately; DNS and public IPv4 are required before reporting Connected, while IPv6 is informational only.
-- Android full-tunnel setup adds an IPv6 default route whenever the engine does not supply one, preventing unmatched IPv6 destinations from falling back to the physical network while the VPN interface is active.
+- Android full-tunnel setup ensures IPv4 and IPv6 default routes at the OS layer when the engine supplies only partial routes; Android 13+ uses prefix iterators and older versions use libbox route-range iterators.
 - OpenVPN Client endpoint configurations set block_ipv6, which rejects IPv6 locally inside the engine; VLESS routes IPv6 to the proxy outbound.
 - Profiles and VPN Gate public credentials remain in memory and are not written to server-list API responses or logs.
 - ABI split APK builds target arm64-v8a, armeabi-v7a, x86_64 and x86.
