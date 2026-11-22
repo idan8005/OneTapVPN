@@ -76,6 +76,10 @@ API به‌صورت پیش‌فرض روی 127.0.0.1:8080 اجرا می‌شود
 
 برای ساخت IPA توسعه، Workflow دستی امضای Apple و ابزار Windows برای آماده‌کردن GitHub Secrets اضافه شده‌اند. پیش‌نیازها و مراحل در [docs/IOS_SIGNING_FA.md](docs/IOS_SIGNING_FA.md) آمده است. ابزار `tools/prepare-ios-signing.cmd` فقط فایل‌هایی را که از Apple Developer صادر کرده‌اید آماده می‌کند؛ خودش حساب Apple Developer، گواهی یا provisioning profile ایجاد نمی‌کند.
 
+### همراه وب آیفون (نسخه آزمایشی)
+
+یک PWA فارسی در مسیر [clients/ios-companion](clients/ios-companion/) اضافه شده است. این ابزار فایل‌های خودکفای OpenVPN را بررسی و برای OpenVPN Connect آماده می‌کند و لینک‌های VLESS را برای کپی یا بازکردن Hiddify ارائه می‌دهد. خودش تونل VPN اجرا نمی‌کند، سرور زنده پیدا نمی‌کند و هنوز روی HTTPS میزبانی نشده است. راهنمای فنی و محدودیت‌ها: [README همراه وب](clients/ios-companion/README_FA.md). بستهٔ آزمایشی پس از موفقیت CI در بخش Actions قابل دریافت خواهد بود.
+
 ### استفاده از iPhone بدون حساب Apple Developer
 
 اگر امکان دریافت حساب توسعه‌دهندهٔ Apple را ندارید، نسخهٔ مستقل iOS فعلاً قابل نصب نیست. برای اتصال موقت می‌توانید پروفایل‌های عمومی VPN Gate را در OpenVPN Connect وارد کنید؛ برای لینک‌های VLESS / REALITY نیز Hiddify در صورت موجودبودن در App Store منطقهٔ شما گزینهٔ جداگانه‌ای است. در این روش تونل را برنامهٔ ثالث اجرا می‌کند و تجربهٔ یکپارچهٔ Raahat یا انتخاب خودکار سرور در iPhone هنوز پیاده‌سازی نشده است.
