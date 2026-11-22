@@ -169,11 +169,10 @@ class VPNGateClient {
             val reachableTCP = futures.mapNotNull { future ->
                 runCatching { future.get() }.getOrNull()
             }
-            return (udpCandidates + reachableTCP).sortedWith(
-                compareBy<FreeServer> { it.sourcePingMs }
-                    .thenBy { it.probeLatencyMs ?: Int.MAX_VALUE }
-                    .thenByDescending { it.qualityScore }
-            )
+            // Rank freshly reachable TCP relays by the measured endpoint latency.
+            // UDP is retained as a fallback and sorted using the source-reported ping;
+            // it will only be marked usable after the real tunnel handshake and health probe.
+            return FreeServerSelectionPolicy.sortForConnection(udpCandidates + reachableTCP)
         } finally {
             executor.shutdownNow()
         }
