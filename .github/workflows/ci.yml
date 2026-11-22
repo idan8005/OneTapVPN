@@ -153,6 +153,11 @@ jobs:
           if (-not (Test-Path "artifacts/windows/Core/sing-box.exe")) {
             throw "The verified VPN engine is missing from the Windows package."
           }
+          Copy-Item -LiteralPath "clients/windows/README_FA.txt" -Destination "artifacts/windows/راهنمای-فارسی.txt"
+          Copy-Item -LiteralPath "clients/windows/START_RAahat_VPN.cmd" -Destination "artifacts/windows/شروع-راحت-وی-پی-ان.cmd"
+          if (-not (Test-Path "artifacts/windows/راهنمای-فارسی.txt") -or -not (Test-Path "artifacts/windows/شروع-راحت-وی-پی-ان.cmd")) {
+            throw "Windows quick-start files are missing from the package."
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: RaahatVPN-Windows-x64
