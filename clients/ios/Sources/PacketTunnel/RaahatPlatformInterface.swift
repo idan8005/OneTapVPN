@@ -247,6 +247,8 @@ final class RaahatPlatformInterface: NSObject,
         guard let networkSettings, let tunnel else { return }
         do {
             try runBlocking {
+                tunnel.reasserting = true
+                defer { tunnel.reasserting = false }
                 try await tunnel.setTunnelNetworkSettings(nil)
                 try await tunnel.setTunnelNetworkSettings(networkSettings)
             }
@@ -264,8 +266,8 @@ final class RaahatPlatformInterface: NSObject,
         destinationAddress: String?,
         destinationPort: Int32
     ) throws -> LibboxConnectionOwner {
-        // Per-process attribution is not exposed to third-party iOS packet tunnels.
-        LibboxConnectionOwner()
+        // iOS Packet Tunnel providers cannot reliably attribute packets to app processes.
+        throw error("Per-application connection ownership is not available to iOS Packet Tunnel providers.")
     }
 
     func localDNSTransport() -> LibboxLocalDNSTransportProtocol? { nil }
