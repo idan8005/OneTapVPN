@@ -171,6 +171,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test Swift core package
         run: swift test --package-path clients/ios
+      - name: Generate Xcode project and build unsigned iOS app plus Packet Tunnel extension
+        run: |
+          brew install xcodegen
+          cd clients/ios
+          xcodegen generate
+          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
