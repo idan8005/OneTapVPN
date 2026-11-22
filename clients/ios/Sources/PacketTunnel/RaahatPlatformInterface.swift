@@ -173,29 +173,36 @@ final class RaahatPlatformInterface: NSObject,
         guard let listener else { return }
         pathMonitor?.cancel()
         let monitor = NWPathMonitor()
+        let firstUpdate = DispatchSemaphore(value: 0)
         pathMonitor = monitor
         monitor.pathUpdateHandler = { path in
             let pathDescription = Self.describe(path)
             listener.updateNetworkPath(pathDescription)
-            guard path.status == .satisfied,
-                  let interface = path.availableInterfaces.first
-            else {
+            if path.status == .satisfied,
+               let interface = path.availableInterfaces.first {
+                listener.updateDefaultInterface(
+                    interface.name,
+                    interfaceIndex: Int32(interface.index),
+                    isExpensive: path.isExpensive,
+                    isConstrained: path.isConstrained
+                )
+            } else {
                 listener.updateDefaultInterface(
                     "",
                     interfaceIndex: -1,
                     isExpensive: false,
                     isConstrained: false
                 )
-                return
             }
-            listener.updateDefaultInterface(
-                interface.name,
-                interfaceIndex: Int32(interface.index),
-                isExpensive: path.isExpensive,
-                isConstrained: path.isConstrained
-            )
+            // A signal on every update is safe; startDefaultInterfaceMonitor waits only once.
+            firstUpdate.signal()
         }
         monitor.start(queue: DispatchQueue.global(qos: .utility))
+        if firstUpdate.wait(timeout: .now() + 5) == .timedOut {
+            monitor.cancel()
+            pathMonitor = nil
+            throw error("iOS did not provide an initial network path within five seconds.")
+        }
     }
 
     func closeDefaultInterfaceMonitor(
