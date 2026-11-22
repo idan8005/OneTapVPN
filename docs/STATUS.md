@@ -2,7 +2,7 @@
 
 Updated: 2026-11-22
 
-## Android — milestone 0.3.0-dev
+## Android — milestone 0.3.1-dev
 - Official sing-box Android libbox 1.14.4 is used for VLESS + REALITY and OpenVPN Client endpoints.
 - Android VpnService owns the foreground tunnel and TUN descriptor lifecycle.
 - Engine sockets are protected from VPN routing; physical network monitoring is wired.

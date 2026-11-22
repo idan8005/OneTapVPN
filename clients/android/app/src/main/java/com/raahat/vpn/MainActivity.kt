@@ -427,7 +427,7 @@ private fun RaahatHome(
                 )
             }
 
-            Text("نسخه 0.3.0-dev", style = MaterialTheme.typography.labelSmall)
+            Text("نسخه ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall)
         }
     }
 
