@@ -1,0 +1,35 @@
+sing-box 1.14.4
+================
+
+Upstream project: https://github.com/SagerNet/sing-box
+Pinned source tag: v1.14.4
+Official Windows x64 release asset:
+https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip
+
+SHA-256 of the official Windows x64 release archive:
+99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df
+
+License: GNU General Public License, version 3 or (at your option) any later version.
+Source code for the exact version:
+https://github.com/SagerNet/sing-box/tree/v1.14.4
+https://github.com/SagerNet/sing-box/archive/refs/tags/v1.14.4.zip
+
+Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+In addition, no derivative work may use the name or imply association
+with this application without prior consent.
+
+Raahat VPN is an independent project and is not produced, sponsored, or endorsed by SagerNet or nekohasekai.
