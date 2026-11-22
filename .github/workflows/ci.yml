@@ -229,11 +229,33 @@ jobs:
           test -f clients/ios/Frameworks/Libbox.xcframework/Info.plist
       - name: Generate Xcode project and build unsigned iOS app plus Packet Tunnel extension
         run: |
+          set -euo pipefail
           brew install xcodegen
           cd clients/ios
           xcodegen generate
-          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
-          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          ARTIFACT_ROOT="$GITHUB_WORKSPACE/clients/ios/artifacts"
+          rm -rf "$ARTIFACT_ROOT"
+          mkdir -p "$ARTIFACT_ROOT/device" "$ARTIFACT_ROOT/simulator"
+          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath "$PWD/build/device" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          DEVICE_APP="$PWD/build/device/Build/Products/Debug-iphoneos/RaahatVPN.app"
+          test -d "$DEVICE_APP/PlugIns/RaahatPacketTunnel.appex"
+          cp -R "$DEVICE_APP" "$ARTIFACT_ROOT/device/"
+          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath "$PWD/build/simulator" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          SIMULATOR_APP="$PWD/build/simulator/Build/Products/Debug-iphonesimulator/RaahatVPN.app"
+          test -d "$SIMULATOR_APP/PlugIns/RaahatPacketTunnel.appex"
+          cp -R "$SIMULATOR_APP" "$ARTIFACT_ROOT/simulator/"
+          cat > "$ARTIFACT_ROOT/BUILD_INFO_FA.txt" <<'EOF'
+          Raahat VPN — خروجی CI برای iOS
+          شامل برنامه و Packet Tunnel برای iPhone arm64 و شبیه‌ساز iOS.
+          این خروجی‌ها unsigned هستند و بدون Apple Developer signing و provisioning قابل نصب روی iPhone واقعی نیستند.
+          این فایل‌ها تأیید ساخت Xcode هستند، نه تأیید اتصال VPN روی دستگاه واقعی.
+          موتور: sing-box 1.14.4
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-iOS-Unsigned-Apps
+          path: clients/ios/artifacts/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: RaahatVPN-iOS-Libbox-1.14.4
