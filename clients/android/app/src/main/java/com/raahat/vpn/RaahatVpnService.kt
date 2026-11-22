@@ -93,6 +93,7 @@ class RaahatVpnService : VpnService() {
     }
 
     private val worker = Executors.newSingleThreadExecutor()
+    private val encryptedConfigStore by lazy { EncryptedVpnConfigStore(applicationContext) }
     private val tunOpened = AtomicBoolean(false)
     private val engineStopped = AtomicBoolean(true)
     private var tunDescriptor: ParcelFileDescriptor? = null
@@ -104,25 +105,61 @@ class RaahatVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    (isAlwaysOn || isLockdownEnabled)
+                ) {
+                    saveState(
+                        this,
+                        ConnectionState.CONNECTED,
+                        "حالت Always-on یا مسدودسازی Android فعال است؛ برای قطع VPN ابتدا آن را از تنظیمات گوشی خاموش کن."
+                    )
+                    return Service.START_STICKY
+                }
+
+                // Keep the encrypted config on Android 8.1–9 because those releases
+                // expose Always-on to users but do not expose isAlwaysOn() to apps.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1 ||
+                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !isAlwaysOn && !isLockdownEnabled)
+                ) {
+                    runCatching { encryptedConfigStore.clear() }
+                }
                 worker.execute { stopEngine(ConnectionState.DISCONNECTED, null) }
                 return Service.START_NOT_STICKY
             }
-            ACTION_START -> {
-                val config = intent.getStringExtra(EXTRA_CONFIG)
+            ACTION_START, null -> {
+                val suppliedConfig = intent?.getStringExtra(EXTRA_CONFIG)
+                val config = if (!suppliedConfig.isNullOrBlank()) {
+                    try {
+                        encryptedConfigStore.save(suppliedConfig)
+                        suppliedConfig
+                    } catch (_: Exception) {
+                        saveState(this, ConnectionState.FAILED, "ذخیرهٔ امن تنظیم اتصال ممکن نشد؛ اتصال برای محافظت از اطلاعات شروع نشد.")
+                        stopSelf(startId)
+                        return Service.START_NOT_STICKY
+                    }
+                } else {
+                    runCatching { encryptedConfigStore.load() }.getOrNull()
+                }
+
                 if (config.isNullOrBlank()) {
-                    saveState(this, ConnectionState.FAILED, "پیکربندی سرور دریافت نشد.")
+                    saveState(
+                        this,
+                        ConnectionState.FAILED,
+                        "تنظیم اتصال امنی برای بازیابی پیدا نشد. برنامه را باز کن و دوباره متصل شو."
+                    )
                     stopSelf(startId)
                     return Service.START_NOT_STICKY
                 }
+
                 engineStopped.set(false)
                 activeConfig = config
-                saveState(this, ConnectionState.CONNECTING, "در حال برقراری تونل امن…")
-                startAsForeground("در حال اتصال به سرور…")
+                saveState(this, ConnectionState.CONNECTING, "در حال برقراری یا بازیابی تونل امن…")
+                startAsForeground("در حال اتصال یا بازیابی VPN…")
                 worker.execute { startEngine(config) }
+                return Service.START_STICKY
             }
             else -> return Service.START_NOT_STICKY
         }
-        return Service.START_NOT_STICKY
     }
 
     private fun startAsForeground(text: String) {
@@ -318,6 +355,7 @@ class RaahatVpnService : VpnService() {
     }
 
     override fun onRevoke() {
+        runCatching { encryptedConfigStore.clear() }
         worker.execute { stopEngine(ConnectionState.DISCONNECTED, "مجوز VPN از تنظیمات دستگاه لغو شد.") }
         super.onRevoke()
     }
