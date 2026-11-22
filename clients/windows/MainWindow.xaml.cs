@@ -36,7 +36,6 @@ public partial class MainWindow : Window
                 using var feedClient = new PublicVlessFeedClient();
                 var candidates = await feedClient.FetchCandidatesAsync();
                 candidateText = string.Join(Environment.NewLine, candidates);
-                ServerLinkTextBox.Text = candidateText;
 
                 StatusDetailTextBlock.Text =
                     candidates.Count.ToString() +

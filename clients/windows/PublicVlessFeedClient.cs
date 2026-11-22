@@ -20,9 +20,9 @@ public sealed class PublicVlessFeedClient : IDisposable
 
     private static readonly Uri[] FeedMirrors =
     {
-        new("https://cdn.jsdelivr.net/gh/FLAT447/v2ray-lists@main/WHITE_FULL.txt"),
-        new("https://raw.githack.com/FLAT447/v2ray-lists/main/WHITE_FULL.txt"),
-        new("https://raw.githubusercontent.com/FLAT447/v2ray-lists/main/WHITE_FULL.txt")
+        new("https://cdn.jsdelivr.net/gh/FLAT447/v2ray-lists@main/BLACK_FULL.txt"),
+        new("https://raw.githack.com/FLAT447/v2ray-lists/main/BLACK_FULL.txt"),
+        new("https://raw.githubusercontent.com/FLAT447/v2ray-lists/main/BLACK_FULL.txt")
     };
 
     private readonly HttpClient _httpClient;
@@ -42,7 +42,7 @@ public sealed class PublicVlessFeedClient : IDisposable
 
         _httpClient = new HttpClient(handler)
         {
-            Timeout = TimeSpan.FromSeconds(12)
+            Timeout = TimeSpan.FromSeconds(8)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("RaahatVPN/0.2.2");
     }
@@ -126,7 +126,9 @@ public sealed class PublicVlessFeedClient : IDisposable
             throw new InvalidDataException("Feed exceeds the maximum supported size.");
 
         var accepted = new List<string>(maximumCandidates);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var deferredSameHost = new List<string>();
+        var seenLinks = new HashSet<string>(StringComparer.Ordinal);
+        var seenHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var rawLine in feedContent.Split(
                      new[] { '\r', '\n' },
@@ -136,28 +138,40 @@ public sealed class PublicVlessFeedClient : IDisposable
             if (candidate.Length == 0 ||
                 candidate.StartsWith("#", StringComparison.Ordinal) ||
                 candidate.Length > VlessCandidateList.MaximumLinkLength ||
-                !candidate.StartsWith("vless://", StringComparison.OrdinalIgnoreCase))
+                !candidate.StartsWith("vless://", StringComparison.OrdinalIgnoreCase) ||
+                !seenLinks.Add(candidate))
             {
                 continue;
             }
 
+            VlessRealityProfile profile;
             try
             {
                 // This is the same strict parser used immediately before
                 // sing-box configuration generation and engine startup.
-                _ = VlessRealityProfile.Parse(candidate);
+                profile = VlessRealityProfile.Parse(candidate);
             }
             catch (FormatException)
             {
                 continue;
             }
 
-            if (!seen.Add(candidate))
-                continue;
+            if (seenHosts.Add(profile.Server))
+                accepted.Add(candidate);
+            else
+                deferredSameHost.Add(candidate);
 
-            accepted.Add(candidate);
             if (accepted.Count == maximumCandidates)
                 break;
+        }
+
+        // Prefer different hosts first. If the feed has too few distinct
+        // hosts, retain alternate ports/profiles as a final fallback.
+        foreach (var candidate in deferredSameHost)
+        {
+            if (accepted.Count == maximumCandidates)
+                break;
+            accepted.Add(candidate);
         }
 
         return accepted;

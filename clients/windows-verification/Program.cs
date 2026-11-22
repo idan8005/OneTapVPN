@@ -82,6 +82,21 @@ var limitedPublicFeed = PublicVlessFeedClient.FilterSupportedCandidates(manyPubl
 Require(limitedPublicFeed.Count == VlessCandidateList.MaximumCandidates,
     "Public feed filter did not enforce the five-candidate connection limit.");
 
+var sameHostAlternatePort = validLink.Replace(":443", ":444", StringComparison.Ordinal);
+var uniqueHostFallback = validLink.Replace(
+    "example.com",
+    "second.example.com",
+    StringComparison.Ordinal);
+var hostDiversityCandidates = PublicVlessFeedClient.FilterSupportedCandidates(
+    string.Join(Environment.NewLine, new[] { validLink, sameHostAlternatePort, uniqueHostFallback }),
+    3);
+Require(hostDiversityCandidates.Count == 3, "Public feed did not preserve fallback candidates.");
+Require(hostDiversityCandidates[0] == validLink, "Public feed did not preserve the first ranked host.");
+Require(hostDiversityCandidates[1] == uniqueHostFallback,
+    "Public feed did not prefer a different host over a duplicate host.");
+Require(hostDiversityCandidates[2] == sameHostAlternatePort,
+    "Public feed did not retain an alternate port as a final fallback.");
+
 var profile = VlessRealityProfile.Parse(validLink);
 Require(profile.Server == "example.com", "Server hostname parsing failed.");
 Require(profile.ServerPort == 443, "Server port parsing failed.");
