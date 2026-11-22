@@ -30,7 +30,7 @@ jobs:
       - run: go build ./cmd/api
 
   android:
-    name: Android debug build
+    name: Android build and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,13 +46,57 @@ jobs:
           gradle-version: "8.9"
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Build and test
+      - name: Build and test debug APKs
         working-directory: clients/android
         run: gradle :app:testDebugUnitTest :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: RaahatVPN-Android-Debug
           path: clients/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - id: signing
+        name: Prepare optional persistent release signing key
+        shell: bash
+        env:
+          RAAHAT_ANDROID_KEYSTORE_BASE64: ${{ secrets.RAAHAT_ANDROID_KEYSTORE_BASE64 }}
+          RAAHAT_ANDROID_STORE_PASSWORD: ${{ secrets.RAAHAT_ANDROID_STORE_PASSWORD }}
+          RAAHAT_ANDROID_KEY_ALIAS: ${{ secrets.RAAHAT_ANDROID_KEY_ALIAS }}
+          RAAHAT_ANDROID_KEY_PASSWORD: ${{ secrets.RAAHAT_ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$RAAHAT_ANDROID_KEYSTORE_BASE64" || -z "$RAAHAT_ANDROID_STORE_PASSWORD" || -z "$RAAHAT_ANDROID_KEY_ALIAS" || -z "$RAAHAT_ANDROID_KEY_PASSWORD" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Persistent signing key is not configured; signed release build is skipped."
+            exit 0
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/raahat-release.jks"
+          printf '%s' "$RAAHAT_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "RAAHAT_ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Build signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: clients/android
+        env:
+          RAAHAT_ANDROID_STORE_PASSWORD: ${{ secrets.RAAHAT_ANDROID_STORE_PASSWORD }}
+          RAAHAT_ANDROID_KEY_ALIAS: ${{ secrets.RAAHAT_ANDROID_KEY_ALIAS }}
+          RAAHAT_ANDROID_KEY_PASSWORD: ${{ secrets.RAAHAT_ANDROID_KEY_PASSWORD }}
+        run: gradle :app:assembleRelease
+      - name: Verify release APK signature
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          APK="clients/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [[ ! -f "$APK" ]]; then
+            APK="clients/android/app/build/outputs/apk/release/app-release.apk"
+          fi
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+      - name: Upload persistent-signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-Android-Release-Signed
+          path: clients/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
   windows:
