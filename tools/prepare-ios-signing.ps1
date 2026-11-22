@@ -78,7 +78,11 @@ RAAHAT_IOS_EXTENSION_PROFILE_BASE64=$extensionProfileBase64
     $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     & icacls.exe $outputDirectory /inheritance:r /grant:r "${account}:(OI)(CI)F" "SYSTEM:(OI)(CI)F" | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "تنظیم دسترسی محدود برای پوشه خروجی انجام نشد. فایل را به‌صورت دستی در محل امن نگهداری کنید."
+        throw "تنظیم دسترسی محدود برای پوشه خروجی انجام نشد."
+    }
+    & icacls.exe $outputPath /inheritance:r /grant:r "${account}:F" "SYSTEM:F" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "تنظیم دسترسی محدود برای فایل Secret انجام نشد."
     }
 
     Write-Host ""
