@@ -26,7 +26,11 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Raahat VPN
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         CODE_SIGN_ENTITLEMENTS: Config/RaahatVPN.entitlements
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
+    configFiles:
+      Release: Config/RaahatVPN.Release.xcconfig
   RaahatPacketTunnel:
     type: app-extension
     platform: iOS
@@ -46,4 +50,8 @@ targets:
         INFOPLIST_KEY_NSExtension_NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: Config/RaahatPacketTunnel.entitlements
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
+    configFiles:
+      Release: Config/RaahatPacketTunnel.Release.xcconfig
