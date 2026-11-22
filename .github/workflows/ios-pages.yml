@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "clients/ios-companion/**"
+      - "clients/ios-companion/index.html"
+      - "clients/ios-companion/app.js"
+      - "clients/ios-companion/manifest.webmanifest"
+      - "clients/ios-companion/sw.js"
+      - "clients/ios-companion/icon.svg"
       - ".github/workflows/ios-pages.yml"
   workflow_dispatch:
 
