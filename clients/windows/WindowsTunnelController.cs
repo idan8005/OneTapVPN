@@ -217,23 +217,44 @@ public sealed class WindowsTunnelController : IDisposable
             {
                 try
                 {
-                    if (!engine.HasExited)
+                    if (!SafeHasExited(engine))
                         engine.Kill(entireProcessTree: true);
                     await engine.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 }
                 catch { }
+
+                if (!SafeHasExited(engine))
+                {
+                    // Closing the Job Object is the last automatic process-kill
+                    // path. If termination still cannot be confirmed, retain
+                    // the process/config handles so Dispose never unlocks the
+                    // firewall while a tunnel engine may still be alive.
+                    job?.Dispose();
+                    job = null;
+                    try { await engine.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+                    catch { }
+                }
             }
 
-            job?.Dispose();
-            engine?.Dispose();
-            configLease?.Dispose();
+            if (engine is not null && !SafeHasExited(engine))
+            {
+                _process = engine;
+                _jobHandle = job;
+                _configLease = configLease;
+            }
+            else
+            {
+                job?.Dispose();
+                engine?.Dispose();
+                configLease?.Dispose();
 
-            if (ReferenceEquals(_process, engine))
-                _process = null;
-            if (ReferenceEquals(_jobHandle, job))
-                _jobHandle = null;
-            if (ReferenceEquals(_configLease, configLease))
-                _configLease = null;
+                if (ReferenceEquals(_process, engine))
+                    _process = null;
+                if (ReferenceEquals(_jobHandle, job))
+                    _jobHandle = null;
+                if (ReferenceEquals(_configLease, configLease))
+                    _configLease = null;
+            }
             throw;
         }
     }
@@ -405,16 +426,40 @@ public sealed class WindowsTunnelController : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        try { StopAsync().GetAwaiter().GetResult(); }
+
+        var engineStopped = false;
+        try
+        {
+            StopEngineOnlyAsync().GetAwaiter().GetResult();
+            engineStopped = true;
+        }
         catch
         {
-            try { _killSwitch?.RequestRecoveryAsync().GetAwaiter().GetResult(); } catch { }
+            // Fail closed: if process termination is not confirmed, do not
+            // request firewall rollback. The SYSTEM task keeps outbound Block
+            // until the next application startup can safely restore it.
         }
-        _killSwitch?.Dispose();
+
+        if (engineStopped && _killSwitch is not null)
+        {
+            try { _killSwitch.DeactivateAsync().GetAwaiter().GetResult(); }
+            catch
+            {
+                // The engine is confirmed stopped, so it is safe for the
+                // recovery task to retry the explicit firewall restoration.
+                try { _killSwitch.RequestRecoveryAsync().GetAwaiter().GetResult(); } catch { }
+            }
+
+            _killSwitch.Dispose();
+        }
+
+        // If the engine could not be confirmed stopped, leave the recovery
+        // state untouched. The SYSTEM task preserves the firewall lock.
         _killSwitch = null;
         _disposed = true;
         _httpClient.Dispose();
     }
+
 }
 
 internal static class WindowsJob
