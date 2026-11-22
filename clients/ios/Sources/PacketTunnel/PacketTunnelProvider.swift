@@ -85,6 +85,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if let fileURL = try? configurationURL() {
                 try? FileManager.default.removeItem(at: fileURL)
             }
+            deleteConfigurationEncryptionKey()
         }
     }
 
@@ -223,6 +224,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         throw tunnelError("The configuration encryption key could not be created.")
+    }
+
+    private func deleteConfigurationEncryptionKey() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.raahat.vpn.packet-tunnel.configuration",
+            kSecAttrAccount as String: "latest-config-aes256-v1"
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        // A missing item is expected after a fresh install or already-cleared disconnect.
+        guard status == errSecSuccess || status == errSecItemNotFound else { return }
     }
 
     private func keychainError(_ status: OSStatus) -> NSError {
