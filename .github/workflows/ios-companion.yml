@@ -30,7 +30,7 @@ jobs:
           test -s clients/ios-companion/icon.svg
       - name: Validate live catalogue integration contract
         run: |
-          node -e 'const fs=require("fs"); const html=fs.readFileSync("clients/ios-companion/index.html","utf8"); const js=fs.readFileSync("clients/ios-companion/app.js","utf8"); const q=String.fromCharCode(34); for(const id of ["apiBase","loadServers","catalogueStatus","serverList"]) if(!html.includes("id="+q+id+q)) throw new Error("Missing UI element: "+id); const rules=["/api/v1/servers","credentials:"+q+"omit"+q,"cache:"+q+"no-store"+q,"verification_level!=="+q+"tcp-reachable"+q]; for(const rule of rules) if(!js.includes(rule)) throw new Error("Missing catalogue safety rule: "+rule)'
+          node -e 'const fs=require("fs"); const html=fs.readFileSync("clients/ios-companion/index.html","utf8"); const js=fs.readFileSync("clients/ios-companion/app.js","utf8"); const q=String.fromCharCode(34); for(const id of ["apiBase","loadServers","catalogueStatus","serverList"]) if(!html.includes("id="+q+id+q)) throw new Error("Missing UI element: "+id); const rules=["/api/v1/servers","credentials:"+q+"omit"+q,"cache:"+q+"no-store"+q,"verification_level!=="+q+"tcp-reachable"+q,"loadServerCatalogue();","75_000"]; for(const rule of rules) if(!js.includes(rule)) throw new Error("Missing catalogue safety rule: "+rule)'
       - name: Package static companion
         run: |
           cd clients

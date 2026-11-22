@@ -78,12 +78,12 @@ async function loadServerCatalogue(){
  const list=$("serverList");
  button.disabled=true;
  list.replaceChildren();
- setStatus("catalogueStatus","در حال دریافت فهرست سرورها…");
+ setStatus("catalogueStatus","در حال دریافت فهرست سرورها… در شروع اول ممکن است بیدارشدن سرویس ابری کمی طول بکشد.");
  let timer;
  try{
   const base=normalizeApiBase($("apiBase").value);
   const controller=new AbortController();
-  timer=setTimeout(()=>controller.abort(),12000);
+  timer=setTimeout(()=>controller.abort(),75_000);
   const response=await fetch(base+"/api/v1/servers",{
    method:"GET",
    headers:{Accept:"application/json"},
@@ -99,7 +99,7 @@ async function loadServerCatalogue(){
   setStatus("catalogueStatus","دریافت موفق بود · "+count.toLocaleString("fa-IR")+" سرور قابل نمایش از "+payload.count.toLocaleString("fa-IR")+" مورد.",count?"success":"warning");
  }catch(error){
   list.replaceChildren();
-  const message=error.name==="AbortError"?"پاسخ API بیش از ۱۲ ثانیه طول کشید.":(error.message||"ارتباط با API برقرار نشد.");
+  const message=error.name==="AbortError"?"پاسخ API بیش از ۷۵ ثانیه طول کشید.":(error.message||"ارتباط با API برقرار نشد.");
   setStatus("catalogueStatus",message+" بررسی کن نشانی درست باشد، API در دسترس باشد و CORS آن برای وب‌سایت راحت مجاز شده باشد.","warning");
  }finally{
   if(timer)clearTimeout(timer);
@@ -137,4 +137,10 @@ $("shareOvpn").addEventListener("click",shareProfile);$("saveOvpn").addEventList
 function getVless(){const s=$("vless").value.trim();if(!/^vless:\/\/[0-9a-f-]{36}@[^\s#]+/i.test(s))throw new Error("لینک VLESS معتبر وارد کن.");return s;}
 $("openHiddify").addEventListener("click",()=>{try{const s=getVless();setStatus("vlessStatus","لینک آماده است. اگر Hiddify نصب و scheme آن فعال باشد، برنامه باز می‌شود.","success");location.href="hiddify://import/"+encodeURIComponent(s)+"#Raahat";}catch(e){setStatus("vlessStatus",e.message,"warning");}});
 $("copyVless").addEventListener("click",async()=>{try{const s=getVless();await navigator.clipboard.writeText(s);setStatus("vlessStatus","لینک کپی شد. آن را در Hiddify وارد کن.","success");}catch(e){setStatus("vlessStatus",e.message||"کپی انجام نشد.","warning");}});
-if("serviceWorker" in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+window.addEventListener("load",()=>{
+ if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+ }
+ // The hosted API address is pre-filled, so the live catalogue loads without a manual tap.
+ if($("apiBase").value.trim())loadServerCatalogue();
+});

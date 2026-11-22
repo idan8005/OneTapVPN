@@ -14,10 +14,10 @@ main{width:min(760px,100%);margin:auto;padding:28px 18px 48px}.brand{display:fle
 </head>
 <body><main>
 <header class="brand"><img src="./icon.svg" alt="لوگوی راحت وی‌پی‌ان"><div><h1>راحت وی‌پی‌ان</h1><div class="sub">همراه وب آیفون · نسخه آزمایشی 0.2.0</div></div></header>
-<section class="card" id="catalogueCard"><span class="pill">کاتالوگ زنده</span><h2>سرورهای بررسی‌شده</h2><p class="muted">نشانی سرویس API راحت وی‌پی‌ان را وارد کن تا فهرست سرورهای فعال دریافت شود. این بخش فقط اطلاعات سرورها را نشان می‌دهد.</p>
+<section class="card" id="catalogueCard"><span class="pill">کاتالوگ زنده</span><h2>سرورهای بررسی‌شده</h2><p class="muted">نشانی API از قبل تنظیم شده است؛ فهرست سرورها هنگام بازشدن صفحه به‌طور خودکار دریافت می‌شود. این بخش فقط اطلاعات سرورها را نشان می‌دهد.</p>
 <label for="apiBase">نشانی سرویس API</label><input id="apiBase" type="url" inputmode="url" autocomplete="url" value="https://raahat-vpn-api.onrender.com" placeholder="https://raahat-vpn-api.onrender.com">
 <div class="actions"><button id="loadServers">دریافت فهرست سرورها</button></div>
-<div id="catalogueStatus" class="status" aria-live="polite">نشانی API هنوز وارد نشده است.</div><div id="serverList" class="server-list" aria-live="polite"></div>
+<div id="catalogueStatus" class="status" aria-live="polite">در حال آماده‌سازی دریافت خودکار فهرست سرورها…</div><div id="serverList" class="server-list" aria-live="polite"></div>
 <p class="small">برای سرورهای عمومی VPN Gate، پاسخ‌دادن پورت TCP فقط دسترسی اولیه را نشان می‌دهد؛ به‌معنای موفقیت اتصال OpenVPN، سرعت واقعی یا امنیت سرور نیست. این صفحه هنوز تونل VPN برقرار نمی‌کند و نشانی API را ذخیره نمی‌کند.</p></section>
 <section class="card"><span class="pill">OpenVPN</span><h2>پروفایل OpenVPN را وارد کن</h2><p class="muted">فایل ‎.ovpn را انتخاب کن. این صفحه ساختار پایه و وابستگی‌های خارجی پروفایل را بررسی می‌کند و سپس فایل را برای OpenVPN Connect آماده می‌کند.</p>
 <label for="ovpn">انتخاب فایل ‎.ovpn</label><input id="ovpn" type="file" accept=".ovpn,text/plain">
