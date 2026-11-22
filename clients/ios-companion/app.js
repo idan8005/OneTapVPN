@@ -12,8 +12,8 @@ function normalizeApiBase(raw){
  try{url=new URL(value);}catch{throw new Error("نشانی API درست نیست. نمونه: https://api.example.com");}
  const localHTTP=url.protocol==="http:"&&["localhost","127.0.0.1","[::1]"].includes(url.hostname);
  if(url.protocol!=="https:"&&!localHTTP)throw new Error("برای امنیت، نشانی API باید با HTTPS شروع شود.");
- if(url.username||url.password||url.search||url.hash)throw new Error("نشانی API نباید نام کاربری، رمز، پارامتر یا بخش انتهایی داشته باشد.");
- return url.href.replace(/\/+$/,"");
+ if(url.username||url.password||url.search||url.hash||url.pathname!=="/")throw new Error("فقط نشانی اصلی سرویس را وارد کن؛ بدون مسیر، نام کاربری یا پارامتر.");
+ return url.origin;
 }
 
 function serverIsDisplayable(server){
