@@ -1,0 +1,39 @@
+name: Raahat iPhone companion
+on:
+  push:
+    branches: [main]
+    paths:
+      - "clients/ios-companion/**"
+      - ".github/workflows/ios-companion.yml"
+  pull_request:
+    paths:
+      - "clients/ios-companion/**"
+      - ".github/workflows/ios-companion.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate JavaScript syntax
+        run: node --check clients/ios-companion/app.js
+      - name: Validate manifest and required files
+        run: |
+          node -e 'const fs=require("fs"); const m=JSON.parse(fs.readFileSync("clients/ios-companion/manifest.webmanifest","utf8")); if(m.display!=="standalone" || !m.start_url) process.exit(1)'
+          test -s clients/ios-companion/index.html
+          test -s clients/ios-companion/sw.js
+          test -s clients/ios-companion/icon.svg
+      - name: Package static companion
+        run: |
+          cd clients
+          zip -r "$RUNNER_TEMP/raahat-iphone-companion.zip" ios-companion
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Raahat-iPhone-Companion-PWA
+          path: ${{ runner.temp }}/raahat-iphone-companion.zip
+          if-no-files-found: error
