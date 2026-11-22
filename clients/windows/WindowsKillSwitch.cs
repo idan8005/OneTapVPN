@@ -217,35 +217,35 @@ public sealed class WindowsKillSwitch : IDisposable
         var engine = EscapePowerShellLiteral(Path.GetFullPath(enginePath));
         var endpoint = EscapePowerShellLiteral(endpointAddress.ToString());
 
-        return $"""
+        return $$"""
 $ErrorActionPreference = 'Stop'
-$group = '{FirewallGroup}'
-$enginePath = '{engine}'
-$endpoint = '{endpoint}'
-$port = {endpointPort}
+$group = '{{FirewallGroup}}'
+$enginePath = '{{engine}}'
+$endpoint = '{{endpoint}}'
+$port = {{endpointPort}}
 $lanRanges = @('10.0.0.0/8','100.64.0.0/10','127.0.0.0/8','169.254.0.0/16','172.16.0.0/12','192.168.0.0/16','::1/128','fc00::/7','fe80::/10')
 
 Remove-NetFirewallRule -PolicyStore PersistentStore -Group $group -ErrorAction SilentlyContinue | Out-Null
-New-NetFirewallRule -PolicyStore PersistentStore -Name 'RaahatVPN_KillSwitch_Tunnel' -DisplayName 'Raahat VPN - Allow tunnel traffic' -Group $group -Direction Outbound -Action Allow -Profile Any -Enabled True -InterfaceAlias '{TunnelInterfaceAlias}' -Protocol Any | Out-Null
+New-NetFirewallRule -PolicyStore PersistentStore -Name 'RaahatVPN_KillSwitch_Tunnel' -DisplayName 'Raahat VPN - Allow tunnel traffic' -Group $group -Direction Outbound -Action Allow -Profile Any -Enabled True -InterfaceAlias '{{TunnelInterfaceAlias}}' -Protocol Any | Out-Null
 New-NetFirewallRule -PolicyStore PersistentStore -Name 'RaahatVPN_KillSwitch_LAN' -DisplayName 'Raahat VPN - Allow private LAN' -Group $group -Direction Outbound -Action Allow -Profile Any -Enabled True -RemoteAddress $lanRanges -Protocol Any | Out-Null
-New-NetFirewallRule -PolicyStore PersistentStore -Name 'RaahatVPN_KillSwitch_Engine_{EndpointRuleSuffix(endpointAddress, endpointPort)}' -DisplayName 'Raahat VPN - Allow sing-box server endpoint' -Group $group -Direction Outbound -Action Allow -Profile Any -Enabled True -Program $enginePath -Protocol TCP -RemoteAddress $endpoint -RemotePort $port | Out-Null
+New-NetFirewallRule -PolicyStore PersistentStore -Name 'RaahatVPN_KillSwitch_Engine_{{EndpointRuleSuffix(endpointAddress, endpointPort)}}' -DisplayName 'Raahat VPN - Allow sing-box server endpoint' -Group $group -Direction Outbound -Action Allow -Profile Any -Enabled True -Program $enginePath -Protocol TCP -RemoteAddress $endpoint -RemotePort $port | Out-Null
 
 # Disable pre-existing local outbound allow rules so they cannot bypass the
 # tunnel after the default outbound action is changed to Block. Their exact
 # enabled states were saved before any firewall change and are restored later.
-$existingAllows = @(Get-NetFirewallRule -PolicyStore PersistentStore -Enabled True -Direction Outbound -Action Allow -ErrorAction Stop | Where-Object {{ $_.Group -ne $group }})
-foreach ($rule in $existingAllows) {{
+$existingAllows = @(Get-NetFirewallRule -PolicyStore PersistentStore -Enabled True -Direction Outbound -Action Allow -ErrorAction Stop | Where-Object { $_.Group -ne $group })
+foreach ($rule in $existingAllows) {
     Disable-NetFirewallRule -PolicyStore PersistentStore -Name $rule.Name -ErrorAction Stop | Out-Null
-}}
+}
 
 Set-NetFirewallProfile -PolicyStore PersistentStore -Name @('Domain','Private','Public') -Enabled True -DefaultOutboundAction Block -ErrorAction Stop
 $effective = @(Get-NetFirewallProfile -PolicyStore ActiveStore)
-if (@($effective | Where-Object { [string]$_.DefaultOutboundAction -ne 'Block' }).Count -gt 0) {{
+if (@($effective | Where-Object { [string]$_.DefaultOutboundAction -ne 'Block' -or $_.Enabled -ne $true }).Count -gt 0) {
     throw 'Effective firewall policy did not enter outbound Block mode.'
-}}
-if (-not (Get-NetFirewallRule -PolicyStore ActiveStore -Name 'RaahatVPN_KillSwitch_Tunnel' -ErrorAction SilentlyContinue)) {{
+}
+if (-not (Get-NetFirewallRule -PolicyStore ActiveStore -Name 'RaahatVPN_KillSwitch_Tunnel' -ErrorAction SilentlyContinue)) {
     throw 'Tunnel allow rule is not present in effective firewall policy.'
-}}
+}
 Write-Output 'ARMED'
 """;
     }
@@ -264,12 +264,12 @@ Write-Output 'ARMED'
         var endpoint = EscapePowerShellLiteral(endpointAddress.ToString());
         var ruleName = "RaahatVPN_KillSwitch_Engine_" + EndpointRuleSuffix(endpointAddress, endpointPort);
 
-        return $"""
+        return $$"""
 $ErrorActionPreference = 'Stop'
-$ruleName = '{ruleName}'
-if (-not (Get-NetFirewallRule -PolicyStore PersistentStore -Name $ruleName -ErrorAction SilentlyContinue)) {{
-    New-NetFirewallRule -PolicyStore PersistentStore -Name $ruleName -DisplayName 'Raahat VPN - Allow sing-box server endpoint' -Group '{FirewallGroup}' -Direction Outbound -Action Allow -Profile Any -Enabled True -Program '{engine}' -Protocol TCP -RemoteAddress '{endpoint}' -RemotePort {endpointPort} | Out-Null
-}}
+$ruleName = '{{ruleName}}'
+if (-not (Get-NetFirewallRule -PolicyStore PersistentStore -Name $ruleName -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -PolicyStore PersistentStore -Name $ruleName -DisplayName 'Raahat VPN - Allow sing-box server endpoint' -Group '{{FirewallGroup}}' -Direction Outbound -Action Allow -Profile Any -Enabled True -Program '{{engine}}' -Protocol TCP -RemoteAddress '{{endpoint}}' -RemotePort {{endpointPort}} | Out-Null
+}
 Write-Output 'ENDPOINT_ALLOWED'
 """;
     }
@@ -506,7 +506,7 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
         if (_disposed) return;
         _disposed = true;
         try { DeactivateAsync().GetAwaiter().GetResult(); }
-        catch { /* The SYSTEM task preserves the outbound lock; the next app startup retries rollback. */ }
+        catch { /* The SYSTEM recovery task keeps retrying while the state file remains. */ }
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
