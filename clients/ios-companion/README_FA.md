@@ -50,7 +50,7 @@ API باید مسیر `GET /api/v1/servers` را در دسترس بگذارد. �
 
 فایل‌های همین پوشه را روی یک میزبان HTTPS منتشر کنید. سپس در Safari آیفون آدرس را باز کنید و از Share > Add to Home Screen استفاده کنید.
 
-Workflow با نام **Raahat iPhone companion** نحو JavaScript و manifest را بررسی می‌کند و ZIP خروجی را به‌عنوان artifact منتشر می‌کند. این workflow به‌تنهایی GitHub Pages یا میزبان عمومی را فعال نمی‌کند.
+Workflow با نام **Raahat iPhone companion** نحو JavaScript، manifest و قرارداد دریافت کاتالوگ را بررسی می‌کند و ZIP خروجی را به‌عنوان artifact می‌سازد. Workflow جداگانهٔ **Publish Raahat iPhone companion** فقط همین پوشه را روی GitHub Pages منتشر می‌کند. برای بار اول در مخزن GitHub به Settings > Pages بروید و در بخش Build and deployment، گزینهٔ Source را روی **GitHub Actions** بگذارید؛ سپس workflow انتشار را از تب Actions دوباره اجرا کنید. تا پیش از موفقیت آن workflow، نشانی عمومی سایت فعال نیست.
 
 ## آزمون دستی پیش از انتشار
 
