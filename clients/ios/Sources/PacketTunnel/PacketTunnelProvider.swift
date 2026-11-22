@@ -1,6 +1,8 @@
+import CryptoKit
 import Foundation
 import Libbox
 import NetworkExtension
+import Security
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let appGroupIdentifier = "group.com.raahat.vpn"
@@ -110,9 +112,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             throw tunnelError("No saved VPN configuration is available. Open Raahat VPN and connect again.")
         }
 
-        let data = try Data(contentsOf: fileURL)
+        let encryptedData = try Data(contentsOf: fileURL)
+        let data = try decryptConfiguration(encryptedData)
         guard let configuration = String(data: data, encoding: .utf8), !configuration.isEmpty else {
-            throw tunnelError("The saved VPN configuration could not be read.")
+            throw tunnelError("The saved VPN configuration could not be decrypted or decoded.")
         }
         return configuration
     }
@@ -154,9 +157,79 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let data = configuration.data(using: .utf8) else {
             throw tunnelError("The VPN configuration could not be encoded.")
         }
-        try data.write(
+
+        // The extension owns this keychain item; the containing app cannot read the key.
+        // AES-GCM authenticates the full encrypted payload before recovery.
+        let sealedBox = try AES.GCM.seal(data, using: configurationEncryptionKey())
+        guard let encryptedData = sealedBox.combined else {
+            throw tunnelError("The VPN configuration could not be encrypted.")
+        }
+        try encryptedData.write(
             to: fileURL,
             options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        )
+    }
+
+    private func decryptConfiguration(_ encryptedData: Data) throws -> Data {
+        let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
+        return try AES.GCM.open(sealedBox, using: configurationEncryptionKey())
+    }
+
+    private func configurationEncryptionKey() throws -> SymmetricKey {
+        let service = "com.raahat.vpn.packet-tunnel.configuration"
+        let account = "latest-config-aes256-v1"
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+
+        for attempt in 0..<2 {
+            var lookup = baseQuery
+            lookup[kSecReturnData as String] = true
+            lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+
+            var existing: CFTypeRef?
+            let lookupStatus = SecItemCopyMatching(lookup as CFDictionary, &existing)
+            if lookupStatus == errSecSuccess {
+                guard let keyData = existing as? Data, keyData.count == 32 else {
+                    throw tunnelError("The saved encryption key is invalid.")
+                }
+                return SymmetricKey(data: keyData)
+            }
+            guard lookupStatus == errSecItemNotFound else {
+                throw keychainError(lookupStatus)
+            }
+
+            var keyData = Data(count: 32)
+            let randomStatus = keyData.withUnsafeMutableBytes { buffer in
+                SecRandomCopyBytes(kSecRandomDefault, 32, buffer.baseAddress!)
+            }
+            guard randomStatus == errSecSuccess else {
+                throw keychainError(randomStatus)
+            }
+
+            var insertion = baseQuery
+            insertion[kSecValueData as String] = keyData
+            insertion[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            let insertionStatus = SecItemAdd(insertion as CFDictionary, nil)
+            if insertionStatus == errSecSuccess {
+                return SymmetricKey(data: keyData)
+            }
+            if insertionStatus == errSecDuplicateItem && attempt == 0 {
+                continue
+            }
+            throw keychainError(insertionStatus)
+        }
+
+        throw tunnelError("The configuration encryption key could not be created.")
+    }
+
+    private func keychainError(_ status: OSStatus) -> NSError {
+        NSError(
+            domain: NSOSStatusErrorDomain,
+            code: Int(status),
+            userInfo: [NSLocalizedDescriptionKey: "Secure storage for VPN configuration is unavailable."]
         )
     }
 
