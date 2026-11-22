@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using RaahatVPN;
 
@@ -30,6 +32,56 @@ static void MustRejectCandidateList(string input, string label)
     catch (FormatException)
     {
         // Expected.
+    }
+}
+
+
+static async Task ValidatePowerShellSyntaxAsync(string script, string label)
+{
+    var scriptPath = Path.Combine(
+        Path.GetTempPath(),
+        "raahat-" + Guid.NewGuid().ToString("N") + ".ps1");
+    try
+    {
+        await File.WriteAllTextAsync(scriptPath, script, new UTF8Encoding(false));
+        var powershellPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "WindowsPowerShell", "v1.0", "powershell.exe");
+        using var parser = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = powershellPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        var escapedScriptPath = scriptPath.Replace("'", "''", StringComparison.Ordinal);
+        parser.StartInfo.ArgumentList.Add("-NoLogo");
+        parser.StartInfo.ArgumentList.Add("-NoProfile");
+        parser.StartInfo.ArgumentList.Add("-NonInteractive");
+        parser.StartInfo.ArgumentList.Add("-Command");
+        parser.StartInfo.ArgumentList.Add(
+            "$tokens=$null;$errors=$null;" +
+            "[System.Management.Automation.Language.Parser]::ParseFile('" + escapedScriptPath +
+            "',[ref]$tokens,[ref]$errors)|Out-Null;" +
+            "if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_};exit 1}");
+        Require(parser.Start(), "Could not start PowerShell parser for " + label + ".");
+        var stdout = parser.StandardOutput.ReadToEndAsync();
+        var stderr = parser.StandardError.ReadToEndAsync();
+        if (!parser.WaitForExit(15000))
+        {
+            try { parser.Kill(entireProcessTree: true); } catch { }
+            throw new InvalidOperationException("PowerShell syntax validation timed out for " + label + ".");
+        }
+        await Task.WhenAll(stdout, stderr);
+        Require(parser.ExitCode == 0, "PowerShell syntax is invalid for " + label + ". " + stderr.Result);
+    }
+    finally
+    {
+        try { File.Delete(scriptPath); } catch { }
     }
 }
 
@@ -132,7 +184,50 @@ using (var document = JsonDocument.Parse(json))
         "Encrypted DNS over HTTPS was not configured.");
     Require(root.GetProperty("route").GetProperty("final").GetString() == "proxy",
         "Full Tunnel final route was not set to the proxy.");
+    Require(root.GetProperty("inbounds")[0].GetProperty("interface_name").GetString() == WindowsKillSwitch.TunnelInterfaceAlias,
+        "The TUN interface name does not match the Windows firewall allow rule.");
 }
+
+
+var pinnedConfig = profile.ToSingBoxConfig("203.0.113.10");
+using (var pinnedDocument = JsonDocument.Parse(pinnedConfig))
+{
+    Require(pinnedDocument.RootElement.GetProperty("outbounds")[0].GetProperty("server").GetString() == "203.0.113.10",
+        "Resolved server IP was not pinned into the sing-box outbound.");
+    Require(pinnedDocument.RootElement.GetProperty("outbounds")[0].GetProperty("tls").GetProperty("server_name").GetString() == "example.com",
+        "Original TLS server name was not preserved after IP pinning.");
+}
+
+var recoveryScript = WindowsKillSwitch.BuildRecoveryScript();
+Require(recoveryScript.Contains("Set-NetFirewallProfile", StringComparison.Ordinal) &&
+        recoveryScript.Contains("RestoreRequested", StringComparison.Ordinal) &&
+        recoveryScript.Contains("Remove-NetFirewallRule", StringComparison.Ordinal) &&
+        recoveryScript.Contains("AllowRules", StringComparison.Ordinal) &&
+        recoveryScript.Contains("LOCKED_RECOVERY_REQUIRED", StringComparison.Ordinal) &&
+        recoveryScript.Contains("Restore only after", StringComparison.Ordinal),
+    "Kill Switch recovery script does not contain the required rollback operations.");
+
+var testEnginePath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+    "RaahatVPN", "RaahatVPN.exe");
+var testEndpoint = IPAddress.Parse("1.1.1.1");
+var firewallLockScript = WindowsKillSwitch.BuildFirewallLockScript(
+    testEnginePath, testEndpoint, 443);
+var endpointAllowScript = WindowsKillSwitch.BuildEndpointAllowScript(
+    testEnginePath, testEndpoint, 443);
+Require(firewallLockScript.Contains("DefaultOutboundAction Block", StringComparison.Ordinal) &&
+        firewallLockScript.Contains("-Enabled True", StringComparison.Ordinal) &&
+        firewallLockScript.Contains("Disable-NetFirewallRule", StringComparison.Ordinal) &&
+        firewallLockScript.Contains("RaahatVPN", StringComparison.Ordinal),
+    "Kill Switch firewall lock script is missing critical block/allow rules.");
+Require(endpointAllowScript.Contains("RemoteAddress '1.1.1.1'", StringComparison.Ordinal) &&
+        endpointAllowScript.Contains("RemotePort 443", StringComparison.Ordinal),
+    "Kill Switch endpoint exception is not restricted to the selected server IP and port.");
+
+await ValidatePowerShellSyntaxAsync(firewallLockScript, "firewall lock script");
+await ValidatePowerShellSyntaxAsync(endpointAllowScript, "engine endpoint allow script");
+await ValidatePowerShellSyntaxAsync(recoveryScript, "firewall recovery script");
+
 
 var configPath = Path.Combine(Path.GetTempPath(), $"raahat-config-check-{Guid.NewGuid():N}.json");
 try
@@ -175,5 +270,7 @@ Console.WriteLine("Windows VLESS Reality parsing tests: PASS");
 Console.WriteLine("Windows backup candidate-list parsing and limits: PASS");
 Console.WriteLine("Public feed filtering, compatibility checks and candidate limit: PASS");
 Console.WriteLine("Generated Full Tunnel + strict routing + DoH config: PASS");
+Console.WriteLine("Pinned VPN server endpoint and preserved SNI: PASS");
+Console.WriteLine("Kill Switch firewall lock, endpoint rules and crash-recovery scripts: PASS");
 Console.WriteLine("Pinned sing-box configuration validation: PASS");
 return 0;

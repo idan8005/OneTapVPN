@@ -7,12 +7,44 @@ namespace RaahatVPN;
 public partial class MainWindow : Window
 {
     private readonly WindowsTunnelController _tunnel = new();
+    private bool _startupRecoveryPending;
 
     public MainWindow()
     {
         InitializeComponent();
         _tunnel.EngineExited += Tunnel_EngineExited;
+        Loaded += MainWindow_Loaded;
         Closed += (_, _) => _tunnel.Dispose();
+    }
+
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        ConnectButton.IsEnabled = false;
+        StatusTextBlock.Text = "در حال بررسی وضعیت فایروال...";
+        StatusTextBlock.Foreground = Brushes.White;
+        StatusDetailTextBlock.Text = "اگر اجرای قبلی ناگهانی بسته شده باشد، تنظیمات شبکه پیش از اتصال جدید بازیابی می‌شوند.";
+
+        try
+        {
+            await WindowsKillSwitch.RecoverExistingStateAsync();
+            _startupRecoveryPending = false;
+            DisconnectButton.Content = "قطع اتصال";
+            DisconnectButton.IsEnabled = false;
+            StatusTextBlock.Text = "قطع است";
+            StatusDetailTextBlock.Text = "آماده اتصال هستید. Kill Switch هنگام اتصال فعال می‌شود.";
+            ConnectButton.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            _startupRecoveryPending = true;
+            StatusTextBlock.Text = "بازیابی فایروال لازم است";
+            StatusTextBlock.Foreground = Brushes.Orange;
+            StatusDetailTextBlock.Text = ex.Message + " برای تلاش دوباره، دکمهٔ بازیابی را بزنید.";
+            ConnectButton.IsEnabled = false;
+            DisconnectButton.Content = "بازیابی فایروال";
+            DisconnectButton.IsEnabled = true;
+        }
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
@@ -48,7 +80,7 @@ public partial class MainWindow : Window
 
             var result = await _tunnel.ConnectBestAsync(candidateText);
             StatusTextBlock.Text = result.EgressVerified
-                ? "خروجی VPN تأیید شد"
+                ? "اتصال برقرار شد · Kill Switch فعال"
                 : "تونل فعال؛ اتصال تأییدنشده";
             StatusTextBlock.Foreground = result.EgressVerified
                 ? Brushes.LightGreen
@@ -75,8 +107,8 @@ public partial class MainWindow : Window
         finally
         {
             var running = _tunnel.IsRunning;
-            ConnectButton.IsEnabled = !running;
-            DisconnectButton.IsEnabled = running;
+            ConnectButton.IsEnabled = !running && !_tunnel.KillSwitchActive;
+            DisconnectButton.IsEnabled = running || _tunnel.KillSwitchActive;
         }
     }
 
@@ -85,22 +117,46 @@ public partial class MainWindow : Window
         DisconnectButton.IsEnabled = false;
         try
         {
-            await _tunnel.StopAsync();
-            StatusTextBlock.Text = "قطع است";
-            StatusTextBlock.Foreground = Brushes.White;
-            StatusDetailTextBlock.Text = "تونل VPN متوقف شد.";
-            ExitIpTextBlock.Text = string.Empty;
+            if (_startupRecoveryPending)
+            {
+                await WindowsKillSwitch.RecoverExistingStateAsync();
+                _startupRecoveryPending = false;
+                StatusTextBlock.Text = "تنظیمات قبلی فایروال بازیابی شد";
+                StatusTextBlock.Foreground = Brushes.White;
+                StatusDetailTextBlock.Text = "اتصال VPN قطع است و اینترنت به وضعیت قبلی ویندوز برگشته است.";
+                ExitIpTextBlock.Text = string.Empty;
+                DisconnectButton.Content = "قطع اتصال";
+            }
+            else
+            {
+                await _tunnel.StopAsync();
+                StatusTextBlock.Text = "قطع است";
+                StatusTextBlock.Foreground = Brushes.White;
+                StatusDetailTextBlock.Text = "تونل VPN متوقف شد و تنظیمات قبلی فایروال بازیابی شدند.";
+                ExitIpTextBlock.Text = string.Empty;
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            StatusTextBlock.Text = "وضعیت قطع اتصال نامشخص است";
+            StatusTextBlock.Text = "بازیابی فایروال کامل نشد";
             StatusTextBlock.Foreground = Brushes.Orange;
-            StatusDetailTextBlock.Text = "برنامه نتوانست توقف موتور را تأیید کند. پنجره را نبندید و وضعیت را دوباره بررسی کنید.";
+            StatusDetailTextBlock.Text =
+                ex.Message + " اینترنت برای جلوگیری از نشت مسدود می‌ماند؛ دوباره تلاش کنید.";
         }
         finally
         {
-            ConnectButton.IsEnabled = !_tunnel.IsRunning;
-            DisconnectButton.IsEnabled = _tunnel.IsRunning;
+            if (_startupRecoveryPending)
+            {
+                ConnectButton.IsEnabled = false;
+                DisconnectButton.Content = "بازیابی فایروال";
+                DisconnectButton.IsEnabled = true;
+            }
+            else
+            {
+                ConnectButton.IsEnabled = !_tunnel.IsRunning && !_tunnel.KillSwitchActive;
+                DisconnectButton.Content = "قطع اتصال";
+                DisconnectButton.IsEnabled = _tunnel.IsRunning || _tunnel.KillSwitchActive;
+            }
         }
     }
 
@@ -109,13 +165,13 @@ public partial class MainWindow : Window
         _ = Dispatcher.InvokeAsync(() =>
         {
             if (!IsLoaded || !IsVisible) return;
-            StatusTextBlock.Text = "موتور VPN متوقف شد";
+            StatusTextBlock.Text = "تونل قطع شد · Kill Switch فعال";
             StatusTextBlock.Foreground = Brushes.Orange;
             StatusDetailTextBlock.Text =
-                "فرآیند تونل متوقف شده است؛ اتصال اینترنت از طریق VPN دیگر تأیید نمی‌شود.";
+                "موتور VPN متوقف شده است. برای جلوگیری از نشت، اینترنت همچنان مسدود است؛ دکمهٔ قطع اتصال را بزنید تا تنظیمات قبلی فایروال بازیابی شود.";
             ExitIpTextBlock.Text = string.Empty;
-            ConnectButton.IsEnabled = true;
-            DisconnectButton.IsEnabled = false;
+            ConnectButton.IsEnabled = false;
+            DisconnectButton.IsEnabled = true;
         });
     }
 }

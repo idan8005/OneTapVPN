@@ -9,5 +9,6 @@
     <Compile Include="../windows/VlessRealityProfile.cs" Link="VlessRealityProfile.cs" />
     <Compile Include="../windows/VlessCandidateList.cs" Link="VlessCandidateList.cs" />
     <Compile Include="../windows/PublicVlessFeedClient.cs" Link="PublicVlessFeedClient.cs" />
+    <Compile Include="../windows/WindowsKillSwitch.cs" Link="WindowsKillSwitch.cs" />
   </ItemGroup>
 </Project>

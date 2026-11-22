@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -32,9 +33,13 @@ public sealed class WindowsTunnelController : IDisposable
     private Process? _process;
     private SafeFileHandle? _jobHandle;
     private FileStream? _configLease;
+    private WindowsKillSwitch? _killSwitch;
+    private string? _baselinePublicIp;
     private bool _disposed;
 
     public event EventHandler? EngineExited;
+
+    public bool KillSwitchActive => _killSwitch?.IsActive == true;
 
     public bool IsRunning
     {
@@ -45,23 +50,71 @@ public sealed class WindowsTunnelController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Resolves a server before the kill switch is armed. The generated
+    /// sing-box config then uses this numeric endpoint while retaining the
+    /// original TLS SNI, so DNS is not required on the physical adapter.
+    /// </summary>
+    public async Task<IPAddress> ResolveServerAddressAsync(string vlessLink)
+    {
+        var profile = VlessRealityProfile.Parse(vlessLink);
+        IPAddress[] addresses;
+        try
+        {
+            if (IPAddress.TryParse(profile.Server, out var literal))
+                addresses = new[] { literal };
+            else
+                addresses = await Dns.GetHostAddressesAsync(profile.Server)
+                    .WaitAsync(TimeSpan.FromSeconds(8));
+        }
+        catch (Exception error) when (
+            error is SocketException or TimeoutException or System.ComponentModel.Win32Exception)
+        {
+            throw new InvalidOperationException(
+                "نشانی سرور پیش از فعال‌سازی Kill Switch قابل تبدیل به IP نبود.");
+        }
+
+        var selected = addresses.FirstOrDefault(IsPublicIpv4);
+        if (selected is null)
+            throw new InvalidOperationException(
+                "سرور به IP عمومی IPv4 معتبر تبدیل نشد؛ برای جلوگیری از مجاز کردن مقصد ناشناس، اتصال رد شد.");
+        return selected;
+    }
+
     public async Task<TunnelConnectResult> ConnectAsync(string vlessLink)
+    {
+        var endpoint = await ResolveServerAddressAsync(vlessLink);
+        return await ConnectResolvedAsync(vlessLink, endpoint);
+    }
+
+    internal async Task<TunnelConnectResult> ConnectResolvedAsync(
+        string vlessLink,
+        IPAddress resolvedEndpoint)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (IsRunning)
             throw new InvalidOperationException("اتصال از قبل فعال است.");
         if (_process is not null)
-            await StopAsync();
+            await StopEngineOnlyAsync();
 
         var profile = VlessRealityProfile.Parse(vlessLink);
+        if (!IsPublicIpv4(resolvedEndpoint))
+            throw new InvalidOperationException("IP مقصد سرور برای قانون فایروال معتبر نیست.");
+
         var enginePath = Path.Combine(AppContext.BaseDirectory, "Core", "sing-box.exe");
         if (!File.Exists(enginePath))
             throw new FileNotFoundException(
                 "موتور VPN همراه برنامه پیدا نشد. بسته کامل Raahat VPN را دوباره دریافت کنید.",
                 enginePath);
 
-        // Read the baseline before enabling TUN so the app can verify that public IPv4 egress changes.
-        var baselineIp = await TryGetPublicIpv4Async();
+        // Capture the baseline before the first firewall lock and reuse it
+        // across failover attempts while the kill switch remains armed.
+        var baselineIp = KillSwitchActive
+            ? _baselinePublicIp
+            : await TryGetPublicIpv4Async();
+        if (string.IsNullOrWhiteSpace(baselineIp))
+            throw new InvalidOperationException(
+                "IP عمومی پیش از اتصال قابل تأیید نبود؛ برای جلوگیری از نمایش اتصال تأییدنشده، Kill Switch فعال نشد.");
 
         var runtimeDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -76,8 +129,6 @@ public sealed class WindowsTunnelController : IDisposable
 
         try
         {
-            // The config contains the VLESS UUID and Reality key. It is held with a delete-on-close
-            // handle and is removed when the app exits the engine, including abrupt app termination.
             configLease = new FileStream(
                 configPath,
                 FileMode.CreateNew,
@@ -85,12 +136,17 @@ public sealed class WindowsTunnelController : IDisposable
                 FileShare.Read | FileShare.Delete,
                 4096,
                 FileOptions.DeleteOnClose);
-            var configBytes = System.Text.Encoding.UTF8.GetBytes(profile.ToSingBoxConfig());
+            var configBytes = System.Text.Encoding.UTF8.GetBytes(
+                profile.ToSingBoxConfig(resolvedEndpoint.ToString()));
             await configLease.WriteAsync(configBytes);
             await configLease.FlushAsync();
             configLease.Flush(flushToDisk: true);
 
             await ValidateConfigAsync(enginePath, configPath);
+
+            _killSwitch ??= new WindowsKillSwitch();
+            await _killSwitch.EnsureActiveAsync(enginePath, resolvedEndpoint, profile.ServerPort);
+            _baselinePublicIp ??= baselineIp;
 
             engine = new Process
             {
@@ -113,8 +169,8 @@ public sealed class WindowsTunnelController : IDisposable
 
             job = WindowsJob.AttachKillOnClose(engine);
             engine.Exited += (_, _) => HandleEngineExited(engine);
-            engine.OutputDataReceived += (_, _) => { }; // Never write engine output or connection data to logs.
-            engine.ErrorDataReceived += (_, _) => { };  // Errors are intentionally not persisted.
+            engine.OutputDataReceived += (_, _) => { };
+            engine.ErrorDataReceived += (_, _) => { };
             engine.BeginOutputReadLine();
             engine.BeginErrorReadLine();
 
@@ -125,7 +181,7 @@ public sealed class WindowsTunnelController : IDisposable
             await Task.Delay(TimeSpan.FromSeconds(2));
             if (engine.HasExited)
                 throw new InvalidOperationException(
-                    "موتور VPN بلافاصله متوقف شد. ممکن است درایور TUN یا تنظیمات شبکه در این ویندوز پشتیبانی نشود.");
+                    "موتور VPN بلافاصله متوقف شد. Kill Switch فعال مانده و از خروج ترافیک جلوگیری می‌کند.");
 
             var tunnelIp = await VerifyTunnelEgressAsync(baselineIp);
             if (tunnelIp is not null && baselineIp is not null && tunnelIp != baselineIp)
@@ -135,7 +191,7 @@ public sealed class WindowsTunnelController : IDisposable
                     true,
                     baselineIp,
                     tunnelIp,
-                    "خروجی عمومی IPv4 از طریق تونل تغییر کرده و بررسی HTTPS موفق بوده است.");
+                    "خروجی عمومی IPv4 از طریق تونل تغییر کرده است؛ Kill Switch ویندوز نیز فعال است و در صورت قطع تونل، ترافیک خروجی را مسدود می‌کند.");
             }
 
             if (tunnelIp is not null)
@@ -145,7 +201,7 @@ public sealed class WindowsTunnelController : IDisposable
                     false,
                     baselineIp,
                     tunnelIp,
-                    "موتور فعال است، اما تغییر مسیر خروجی اینترنت تأیید نشد. اتصال را تأییدشده در نظر نگیرید.");
+                    "موتور فعال است، اما تغییر مسیر خروجی اینترنت تأیید نشد. Kill Switch فعال مانده و اینترنت تا قطع اتصال مسدود است.");
             }
 
             return new TunnelConnectResult(
@@ -153,7 +209,7 @@ public sealed class WindowsTunnelController : IDisposable
                 false,
                 baselineIp,
                 null,
-                "موتور فعال است، اما بررسی مستقل HTTPS موفق نشد. اتصال هنوز تأیید نشده است.");
+                "موتور فعال است، اما بررسی مستقل HTTPS موفق نشد. Kill Switch فعال مانده و اینترنت تا قطع اتصال مسدود است.");
         }
         catch
         {
@@ -165,7 +221,7 @@ public sealed class WindowsTunnelController : IDisposable
                         engine.Kill(entireProcessTree: true);
                     await engine.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 }
-                catch { /* Best-effort cleanup; the job handle below is the final safety net. */ }
+                catch { }
             }
 
             job?.Dispose();
@@ -182,22 +238,53 @@ public sealed class WindowsTunnelController : IDisposable
         }
     }
 
-    public async Task StopAsync()
+    /// <summary>
+    /// During failover the kill switch is kept armed between candidates so
+    /// there is no unprotected gap.
+    /// </summary>
+    public async Task StopAsync(bool preserveKillSwitch = false)
+    {
+        await StopEngineOnlyAsync();
+
+        if (!preserveKillSwitch && _killSwitch is not null)
+        {
+            await _killSwitch.DeactivateAsync();
+            _killSwitch.Dispose();
+            _killSwitch = null;
+            _baselinePublicIp = null;
+        }
+    }
+
+    private async Task StopEngineOnlyAsync()
     {
         var process = _process;
-        try
+        if (process is not null)
         {
-            if (process is { HasExited: false })
+            try
             {
-                process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));
+                }
             }
-        }
-        catch (InvalidOperationException) { }
-        catch (System.ComponentModel.Win32Exception) { }
-        catch (TimeoutException) { }
+            catch (InvalidOperationException) { }
+            catch (System.ComponentModel.Win32Exception) when (SafeHasExited(process)) { }
+            catch (TimeoutException) { }
 
-        // Closing a Windows Job Object with KILL_ON_JOB_CLOSE also terminates any child process.
+            if (!SafeHasExited(process))
+            {
+                _jobHandle?.Dispose();
+                _jobHandle = null;
+                try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+                catch (TimeoutException) { }
+            }
+
+            if (!SafeHasExited(process))
+                throw new InvalidOperationException(
+                    "توقف موتور VPN تأیید نشد؛ برای جلوگیری از نشت، Kill Switch خاموش نمی‌شود.");
+        }
+
         _jobHandle?.Dispose();
         _jobHandle = null;
         _configLease?.Dispose();
@@ -264,11 +351,8 @@ public sealed class WindowsTunnelController : IDisposable
                 return null;
 
             var currentIp = await TryGetPublicIpv4Async();
-            if (currentIp is not null)
-            {
-                if (originalIp is null || currentIp != originalIp)
-                    return currentIp;
-            }
+            if (currentIp is not null && (originalIp is null || currentIp != originalIp))
+                return currentIp;
 
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
@@ -312,20 +396,23 @@ public sealed class WindowsTunnelController : IDisposable
         return true;
     }
 
+    private static bool SafeHasExited(Process process)
+    {
+        try { return process.HasExited; }
+        catch (InvalidOperationException) { return true; }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true;
-        try
+        try { StopAsync().GetAwaiter().GetResult(); }
+        catch
         {
-            var process = _process;
-            if (process is { HasExited: false })
-                process.Kill(entireProcessTree: true);
+            try { _killSwitch?.RequestRecoveryAsync().GetAwaiter().GetResult(); } catch { }
         }
-        catch { }
-        _jobHandle?.Dispose();
-        _configLease?.Dispose();
-        _process?.Dispose();
+        _killSwitch?.Dispose();
+        _killSwitch = null;
+        _disposed = true;
         _httpClient.Dispose();
     }
 }

@@ -113,7 +113,7 @@
                 <StackPanel>
                     <TextBlock Text="محدودیت‌های این نسخه" FontWeight="SemiBold"
                                Margin="0,0,0,7" />
-                    <TextBlock Text="سرورهای رایگان از یک منبع عمومی و متعلق به اشخاص ثالث دریافت می‌شوند؛ ممکن است ناپایدار باشند یا ترافیک را ثبت کنند. Kill Switch ویندوز و انتخاب برنامه‌ها هنوز پیاده‌سازی نشده‌اند."
+                    <TextBlock Text="هنگام اتصال، Kill Switch فایروال ویندوز فعال می‌شود؛ در صورت قطع تونل، اینترنت مسدود می‌ماند تا تنظیمات قبلی بازیابی شوند. انتخاب برنامه‌ها (Split Tunnel) هنوز آماده نیست."
                                Foreground="#C8D5E5" TextWrapping="Wrap" />
                     <TextBlock Text="برای تأیید خروجی IPv4، یک درخواست HTTPS به api.ipify.org ارسال می‌شود؛ این سرویس بیرونی ممکن است IP خروجی را مشاهده کند."
                                Foreground="#AFC0D7" TextWrapping="Wrap"
@@ -122,7 +122,7 @@
             </Border>
 
             <TextBlock Grid.Row="6"
-                       Text="نسخه 0.2.2-dev  ·  موتور sing-box 1.14.4"
+                       Text="نسخه 0.2.3-dev  ·  موتور sing-box 1.14.4"
                        Foreground="#8496AD"
                        Margin="0,22,0,8"
                        HorizontalAlignment="Center" />

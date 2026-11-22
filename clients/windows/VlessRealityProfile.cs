@@ -91,13 +91,13 @@ public sealed record VlessRealityProfile(
             flow);
     }
 
-    public string ToSingBoxConfig()
+    public string ToSingBoxConfig(string? resolvedServerAddress = null)
     {
         var vless = new JsonObject
         {
             ["type"] = "vless",
             ["tag"] = "proxy",
-            ["server"] = Server,
+            ["server"] = resolvedServerAddress ?? Server,
             ["server_port"] = ServerPort,
             ["uuid"] = Uuid,
             ["tls"] = new JsonObject
@@ -156,6 +156,7 @@ public sealed record VlessRealityProfile(
                 {
                     ["type"] = "tun",
                     ["tag"] = "raahat-tun",
+                    ["interface_name"] = WindowsKillSwitch.TunnelInterfaceAlias,
                     ["address"] = new JsonArray("172.19.0.1/30", "fdfe:dcba:9876::1/126"),
                     ["mtu"] = 1400,
                     ["auto_route"] = true,
