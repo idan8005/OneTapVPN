@@ -213,7 +213,16 @@ final class RaahatPlatformInterface: NSObject,
     }
 
     func getInterfaces() throws -> LibboxNetworkInterfaceIteratorProtocol {
-        let interfaces = (pathMonitor?.currentPath.availableInterfaces ?? []).map { item in
+        guard let pathMonitor else {
+            throw error("The iOS network path monitor has not started.")
+        }
+
+        let path = pathMonitor.currentPath
+        if path.status == .unsatisfied {
+            return NetworkInterfaceIterator([])
+        }
+
+        let interfaces = path.availableInterfaces.map { item in
             let result = LibboxNetworkInterface()
             result.name = item.name
             result.index = Int32(item.index)
@@ -235,7 +244,15 @@ final class RaahatPlatformInterface: NSObject,
     func readWIFIState() -> LibboxWIFIState? { nil }
 
     func clearDNSCache() {
-        // iOS owns the system DNS cache. The tunnel DNS settings are reapplied on reconnect.
+        guard let networkSettings, let tunnel else { return }
+        do {
+            try runBlocking {
+                try await tunnel.setTunnelNetworkSettings(nil)
+                try await tunnel.setTunnelNetworkSettings(networkSettings)
+            }
+        } catch {
+            // Do not log network settings or tunnel configuration values.
+        }
     }
 
     // MARK: - Connection and optional platform features
@@ -350,7 +367,8 @@ final class RaahatPlatformInterface: NSObject,
         let interfaces = path.availableInterfaces
             .map { "\($0.name)#\($0.index)/\($0.type)" }
             .joined(separator: ",")
-        return "status=\(path.status) interfaces=\(interfaces) ipv4=\(path.supportsIPv4) ipv6=\(path.supportsIPv6) dns=\(path.supportsDNS)"
+        let gateways = path.gateways.map { String(describing: $0) }.sorted().joined(separator: ",")
+        return "status=\(path.status) interfaces=\(interfaces) gateways=\(gateways) ipv4=\(path.supportsIPv4) ipv6=\(path.supportsIPv6) dns=\(path.supportsDNS) expensive=\(path.isExpensive) constrained=\(path.isConstrained)"
     }
 
     private func runBlocking<T>(
