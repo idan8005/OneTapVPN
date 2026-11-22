@@ -295,18 +295,25 @@ object OpenVPNProfileParser {
 
         val expected = expectedHost.lowercase().trimEnd('.')
         val expectedAddress = expectedIp.trim()
-        val remote = remotes.firstOrNull { candidate ->
+        val matchingRemotes = remotes.filter { candidate ->
             val host = candidate.host.lowercase().trimEnd('.')
-            val matchesHost = host == expected ||
+            host == expected ||
                 host == expected + ".opengw.net" ||
                 expected == host + ".opengw.net" ||
                 host.equals(expectedAddress, ignoreCase = true)
-            val selected = candidate.protocol ?: profileProtocol.ifBlank { "udp" }
-            matchesHost && selected in setOf("tcp", "udp")
-        } ?: throw IllegalArgumentException(
-            "پروفایل OpenVPN سرور منطبق با فهرست VPN Gate ندارد."
-        )
-        val selectedNetwork = remote.protocol ?: profileProtocol.ifBlank { "udp" }
+        }
+        fun transportOf(remote: Remote): String =
+            remote.protocol ?: profileProtocol.ifBlank { "udp" }
+
+        // Prefer TCP when both transports are offered: TCP candidates can be
+        // filtered with a bounded connect probe. UDP remains a fallback and
+        // is only validated by a real OpenVPN handshake and traffic check.
+        val remote = matchingRemotes.firstOrNull { transportOf(it) == "tcp" }
+            ?: matchingRemotes.firstOrNull { transportOf(it) == "udp" }
+            ?: throw IllegalArgumentException(
+                "پروفایل OpenVPN سرور منطبق با فهرست VPN Gate ندارد."
+            )
+        val selectedNetwork = transportOf(remote)
         require(selectedNetwork in setOf("tcp", "udp")) {
             "پروتکل انتقال OpenVPN پشتیبانی نمی‌شود."
         }
