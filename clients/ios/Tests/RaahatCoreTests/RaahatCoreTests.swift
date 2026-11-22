@@ -9,6 +9,33 @@ final class RaahatCoreTests: XCTestCase {
         "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
         "&sid=0123456789abcdef&sni=example.com&fp=chrome#Test%20Relay"
 
+    func testConfigurationCipherRoundTrip() throws {
+        let key = Data((0..<32).map(UInt8.init))
+        let plaintext = Data("sensitive vpn configuration".utf8)
+
+        let encrypted = try ConfigurationCipher.seal(plaintext, keyData: key)
+        XCTAssertNotEqual(encrypted, plaintext)
+        XCTAssertEqual(
+            try ConfigurationCipher.open(encrypted, keyData: key),
+            plaintext
+        )
+    }
+
+    func testConfigurationCipherRejectsTamperingAndWrongKey() throws {
+        let key = Data(repeating: 0x31, count: 32)
+        let wrongKey = Data(repeating: 0x72, count: 32)
+        let plaintext = Data("vpn profile secret".utf8)
+        let encrypted = try ConfigurationCipher.seal(plaintext, keyData: key)
+
+        var tampered = encrypted
+        tampered[tampered.startIndex] ^= 0x01
+        XCTAssertThrowsError(try ConfigurationCipher.open(tampered, keyData: key))
+        XCTAssertThrowsError(try ConfigurationCipher.open(encrypted, keyData: wrongKey))
+        XCTAssertThrowsError(
+            try ConfigurationCipher.seal(plaintext, keyData: Data(repeating: 0, count: 16))
+        )
+    }
+
     func testServerListDecoding() throws {
         let json = """
         {
