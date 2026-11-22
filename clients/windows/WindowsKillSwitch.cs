@@ -14,8 +14,8 @@ namespace RaahatVPN;
 /// <summary>
 /// Arms a machine-wide outbound firewall lock while the Raahat TUN is active.
 /// Existing local outbound allow rules are snapshotted and disabled so they
-/// cannot bypass the tunnel. A SYSTEM scheduled task restores the snapshot
-/// after an unexpected application exit or system restart.
+/// cannot bypass the tunnel. A SYSTEM scheduled task keeps outbound traffic
+/// blocked after a crash or reboot; the next app startup restores the snapshot.
 /// </summary>
 public sealed class WindowsKillSwitch : IDisposable
 {
@@ -31,6 +31,7 @@ public sealed class WindowsKillSwitch : IDisposable
     private readonly string _statePath;
     private readonly string _recoveryScriptPath;
     private bool _active;
+    private bool _ownsState;
     private bool _disposed;
 
     public WindowsKillSwitch()
@@ -122,7 +123,7 @@ public sealed class WindowsKillSwitch : IDisposable
 
         if (File.Exists(_statePath))
             throw new InvalidOperationException(
-                "یک وضعیت بازیابی فایروال از اجرای قبلی باقی مانده است. برنامه را دوباره باز کنید تا بازیابی انجام شود.");
+                "یک نمونهٔ دیگر یا وضعیت بازیابی قبلی هنوز مالک Kill Switch است؛ از پنجرهٔ فعال برای قطع اتصال یا بازیابی استفاده کنید.");
 
         var snapshot = await CaptureFirewallSnapshotAsync();
         var ownerExecutable = Environment.ProcessPath ??
@@ -136,7 +137,8 @@ public sealed class WindowsKillSwitch : IDisposable
             snapshot.Profiles,
             snapshot.AllowRules);
 
-        await WriteStateAsync(state);
+        await CreateStateIfAbsentAsync(state);
+        _ownsState = true;
         try
         {
             await RegisterRecoveryTaskAsync();
@@ -161,11 +163,15 @@ public sealed class WindowsKillSwitch : IDisposable
         if (!File.Exists(_statePath))
         {
             _active = false;
+            _ownsState = false;
             return;
         }
+        if (!_ownsState)
+            throw new InvalidOperationException(
+                "این پنجره مالک Kill Switch فعال نیست و اجازهٔ بازیابی فایروال پنجرهٔ دیگر را ندارد.");
 
         await UpdateStateAsync(state => state with { RestoreRequested = true });
-        var result = await RunPowerShellFileAsync(_recoveryScriptPath, TimeSpan.FromSeconds(25));
+        await RunPowerShellFileAsync(_recoveryScriptPath, TimeSpan.FromSeconds(25));
         if (File.Exists(_statePath))
         {
             // The scheduled recovery task is still registered and will retry.
@@ -175,17 +181,22 @@ public sealed class WindowsKillSwitch : IDisposable
         }
 
         _active = false;
+        _ownsState = false;
     }
 
     public async Task RequestRecoveryAsync()
     {
         if (!File.Exists(_statePath))
             return;
+        if (!_ownsState)
+            throw new InvalidOperationException(
+                "این نمونه مالک وضعیت فایروال نیست و نمی‌تواند تنظیمات نمونهٔ دیگر را بازیابی کند.");
         await UpdateStateAsync(state => state with { RestoreRequested = true });
         await RunPowerShellFileAsync(_recoveryScriptPath, TimeSpan.FromSeconds(25));
         if (File.Exists(_statePath))
             throw new InvalidOperationException("بازیابی فایروال هنوز در صف تکرار خودکار است.");
         _active = false;
+        _ownsState = false;
     }
 
     public static string BuildFirewallLockScript(
@@ -332,9 +343,12 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
         }
     }
 
-    private async Task WriteStateAsync(RecoveryState state)
+    private async Task CreateStateIfAbsentAsync(RecoveryState state)
     {
         await using var stateLock = await AcquireStateLockAsync(_rootDirectory);
+        if (File.Exists(_statePath))
+            throw new InvalidOperationException(
+                "یک نمونهٔ دیگر هم‌زمان Kill Switch را فعال کرده است؛ اتصال این پنجره متوقف شد.");
         await WriteStateFileCoreAsync(_statePath, state);
     }
 
@@ -541,7 +555,7 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
         if (_disposed) return;
         _disposed = true;
         try { DeactivateAsync().GetAwaiter().GetResult(); }
-        catch { /* The SYSTEM recovery task keeps retrying while the state file remains. */ }
+        catch { /* SYSTEM retains the firewall block until a later safe recovery. */ }
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
