@@ -157,9 +157,9 @@ final class RaahatPlatformInterface: NSObject,
         ret0_.pointee = descriptor
     }
 
-    func usePlatformAutoDetectControl() -> Bool { false }
+    func usePlatformAutoDetectInterfaceControl() -> Bool { false }
 
-    func autoDetectControl(_ fd: Int32) throws {
+    func autoDetectInterfaceControl(_ fd: Int32) throws {
         // Network Extension manages the physical interface and route protection.
     }
 
@@ -246,7 +246,7 @@ final class RaahatPlatformInterface: NSObject,
 
     func localDNSTransport() -> LibboxLocalDNSTransportProtocol? { nil }
 
-    func send(_ notification: LibboxNotification?) throws {
+    func sendNotification(_ notification: LibboxNotification?) throws {
         // Notifications are not needed for tunnel operation.
     }
 
