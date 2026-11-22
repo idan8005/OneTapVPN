@@ -165,18 +165,12 @@ jobs:
           if-no-files-found: error
 
   ios-core:
-    name: iOS shared core tests and native engine framework
+    name: iOS shared core, Libbox framework and Packet Tunnel build
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Test Swift core package
         run: swift test --package-path clients/ios
-      - name: Generate Xcode project and build unsigned iOS app plus Packet Tunnel extension
-        run: |
-          brew install xcodegen
-          cd clients/ios
-          xcodegen generate
-          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
@@ -200,6 +194,18 @@ jobs:
           test -f Libbox.xcframework/Info.plist
           plutil -lint Libbox.xcframework/Info.plist
           plutil -p Libbox.xcframework/Info.plist
+      - name: Link the pinned Libbox framework into the Packet Tunnel target
+        run: |
+          mkdir -p clients/ios/Frameworks
+          cp -R vendor/sing-box/Libbox.xcframework clients/ios/Frameworks/Libbox.xcframework
+          test -f clients/ios/Frameworks/Libbox.xcframework/Info.plist
+      - name: Generate Xcode project and build unsigned iOS app plus Packet Tunnel extension
+        run: |
+          brew install xcodegen
+          cd clients/ios
+          xcodegen generate
+          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          xcodebuild -project RaahatVPN.xcodeproj -scheme RaahatVPN -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
       - uses: actions/upload-artifact@v4
         with:
           name: RaahatVPN-iOS-Libbox-1.14.4
