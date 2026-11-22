@@ -152,6 +152,8 @@ jobs:
             echo "RAAHAT_IOS_TEAM_ID=$TEAM_ID"
             echo "RAAHAT_IOS_APP_PROFILE=$APP_PROFILE_NAME"
             echo "RAAHAT_IOS_EXTENSION_PROFILE=$EXT_PROFILE_NAME"
+            echo "RAAHAT_IOS_APP_PROFILE_UUID=$APP_PROFILE_UUID"
+            echo "RAAHAT_IOS_EXTENSION_PROFILE_UUID=$EXT_PROFILE_UUID"
           } >> "$GITHUB_ENV"
           {
             echo "app_profile_name=$APP_PROFILE_NAME"
@@ -231,7 +233,10 @@ jobs:
           if [[ -n "${RAAHAT_IOS_KEYCHAIN_PATH:-}" ]]; then
             security delete-keychain "$RAAHAT_IOS_KEYCHAIN_PATH" >/dev/null 2>&1 || true
           fi
-          rm -f "$RUNNER_TEMP/raahat-ios-development.p12" \
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          rm -f "$PROFILE_DIR/${RAAHAT_IOS_APP_PROFILE_UUID:-missing}.mobileprovision" \
+                "$PROFILE_DIR/${RAAHAT_IOS_EXTENSION_PROFILE_UUID:-missing}.mobileprovision" \
+                "$RUNNER_TEMP/raahat-ios-development.p12" \
                 "$RUNNER_TEMP/raahat-ios-app.mobileprovision" \
                 "$RUNNER_TEMP/raahat-ios-extension.mobileprovision" \
                 "$RUNNER_TEMP/raahat-ios-app-profile.plist" \
