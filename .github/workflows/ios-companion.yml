@@ -31,6 +31,26 @@ jobs:
       - name: Validate live catalogue integration contract
         run: |
           node -e 'const fs=require("fs"); const html=fs.readFileSync("clients/ios-companion/index.html","utf8"); const js=fs.readFileSync("clients/ios-companion/app.js","utf8"); const q=String.fromCharCode(34); for(const id of ["apiBase","loadServers","catalogueStatus","serverList"]) if(!html.includes("id="+q+id+q)) throw new Error("Missing UI element: "+id); const rules=["/api/v1/servers","credentials:"+q+"omit"+q,"cache:"+q+"no-store"+q,"verification_level!=="+q+"tcp-reachable"+q,"loadServerCatalogue();","75_000"]; for(const rule of rules) if(!js.includes(rule)) throw new Error("Missing catalogue safety rule: "+rule)'
+      - name: Smoke-test hosted API and iPhone CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://raahat-vpn-api.onrender.com"
+          origin="https://raahat-iphone-companion.onrender.com"
+          ok=false
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --connect-timeout 10 --max-time 20 "$api/api/v1/health" -o "$RUNNER_TEMP/raahat-health.json"; then
+              ok=true
+              break
+            fi
+            echo "API not ready yet (attempt $attempt/12); retrying..."
+            sleep 5
+          done
+          test "$ok" = true
+          node -e 'const h=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(h.status!=="ok" || h.service!=="raahat-control-plane") throw new Error("Unexpected API health response")' "$RUNNER_TEMP/raahat-health.json"
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -D "$RUNNER_TEMP/raahat-headers.txt" -H "Origin: $origin" -H "Accept: application/json" "$api/api/v1/servers" -o "$RUNNER_TEMP/raahat-servers.json"
+          grep -Fqi "access-control-allow-origin: $origin" "$RUNNER_TEMP/raahat-headers.txt"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!Array.isArray(p.data)||!Number.isInteger(p.count)||p.count!==p.data.length) throw new Error("Invalid server catalogue response"); for(const s of p.data){if(s.enabled!==true||s.healthy!==true) throw new Error("Unhealthy server leaked into public catalogue"); if(s.source==="vpn-gate"&&s.verification_level!=="tcp-reachable") throw new Error("Unverified VPN Gate row leaked into public catalogue")} console.log("Live API OK; visible catalogue rows: "+p.count)' "$RUNNER_TEMP/raahat-servers.json"
       - name: Package static companion
         run: |
           cd clients
