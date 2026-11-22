@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info:
+  title: Raahat VPN Control Plane API
+  version: 1.0.0
+  description: Public metadata API. No VPN credentials or private server configuration are returned.
+servers:
+  - url: https://api.example.invalid
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Process liveness
+      responses:
+        "200":
+          description: The API process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/health:
+    get:
+      operationId: apiHealth
+      summary: API health
+      responses:
+        "200":
+          description: API is ready to answer requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/servers:
+    get:
+      operationId: listServers
+      summary: List healthy, enabled server metadata
+      parameters:
+        - name: tier
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [free, premium]
+      responses:
+        "200":
+          description: Server metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerList"
+        "400":
+          description: Unsupported tier filter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "405":
+          description: Method not allowed.
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, service, version]
+      properties:
+        status: { type: string, const: ok }
+        service: { type: string, const: raahat-control-plane }
+        version: { type: string, const: 0.1.0-dev }
+    Server:
+      type: object
+      required: [id, name, country_code, region, tier, protocol, enabled, healthy, latency_ms, packet_loss_percent, capacity_percent]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        country_code: { type: string, pattern: "^[A-Z]{2}$" }
+        region: { type: string }
+        tier: { type: string, enum: [free, premium] }
+        protocol: { type: string, enum: [vless-reality, openvpn] }
+        enabled: { type: boolean }
+        healthy: { type: boolean }
+        latency_ms: { type: integer, minimum: 0 }
+        packet_loss_percent: { type: number, minimum: 0, maximum: 100 }
+        capacity_percent: { type: number, minimum: 0, maximum: 100 }
+    ServerList:
+      type: object
+      required: [data, count]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Server" }
+        count: { type: integer, minimum: 0 }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }

@@ -1,0 +1,78 @@
+name: Raahat VPN CI
+
+on:
+  push:
+    branches:
+      - main
+      - rebuild/**
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: backend/go.mod
+      - run: gofmt -w $(find . -name '*.go')
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build ./cmd/api
+
+  android:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build and test
+        working-directory: clients/android
+        run: gradle :app:testDebugUnitTest :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-Android-Debug
+          path: clients/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  windows:
+    name: Windows client build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build Windows client
+        run: dotnet publish clients/windows/RaahatVPN.csproj -c Release -r win-x64 --self-contained true -o artifacts/windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaahatVPN-Windows-x64
+          path: artifacts/windows/
+          if-no-files-found: error
+
+  ios-core:
+    name: iOS shared core tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test Swift core package
+        run: swift test --package-path clients/ios

@@ -1,0 +1,37 @@
+name: RaahatVPN
+options:
+  bundleIdPrefix: com.raahat
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  RaahatCore:
+    path: .
+targets:
+  RaahatVPN:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/App
+    dependencies:
+      - package: RaahatCore
+      - target: RaahatPacketTunnel
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.raahat.vpn
+        INFOPLIST_KEY_CFBundleDisplayName: Raahat VPN
+        CODE_SIGN_ENTITLEMENTS: Config/RaahatVPN.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+  RaahatPacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/PacketTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.raahat.vpn.packet-tunnel
+        CODE_SIGN_ENTITLEMENTS: Config/RaahatPacketTunnel.entitlements
+        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+        INFOPLIST_KEY_NSExtension_NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1,2"

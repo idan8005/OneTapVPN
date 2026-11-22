@@ -1,0 +1,36 @@
+<Window x:Class="RaahatVPN.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Raahat VPN" Height="540" Width="420"
+        MinHeight="500" MinWidth="360"
+        FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen"
+        Background="#101827">
+    <Grid Margin="28">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="راحت وی‌پی‌ان" Foreground="White"
+                       FontSize="30" FontWeight="Bold"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="اتصال امن و ساده" Foreground="#AFC0D7"
+                       FontSize="16" Margin="0,8,0,30"
+                       HorizontalAlignment="Center" />
+            <Border Background="#1C2A3D" CornerRadius="18" Padding="24">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="وضعیت اتصال" Foreground="#AFC0D7"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="قطع است" Foreground="White"
+                               FontSize="25" FontWeight="SemiBold"
+                               Margin="0,8,0,12" HorizontalAlignment="Center" />
+                    <TextBlock Text="موتور VPN هنوز به این نسخه متصل نشده است."
+                               Foreground="#C8D5E5" TextWrapping="Wrap"
+                               TextAlignment="Center" MaxWidth="290" />
+                </StackPanel>
+            </Border>
+            <Button Content="اتصال" IsEnabled="False"
+                    Width="180" Height="48" Margin="0,24,0,0"
+                    FontSize="16" />
+            <TextBlock Text="نسخه 0.1.0-dev" Foreground="#8496AD"
+                       Margin="0,24,0,0" HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Window>
