@@ -68,6 +68,6 @@ class TunnelHealthPolicyTest {
             ipv6Address = "2606:4700:4700::1111"
         )
         assertTrue(report.isReady)
-        assertTrue(report.toPersianMessage().contains("نبود نشت IPv6 را ثابت نمی‌کند"))
+        assertTrue(report.toPersianMessage().contains("آزمون مستقل روی دستگاه لازم است"))
     }
 }

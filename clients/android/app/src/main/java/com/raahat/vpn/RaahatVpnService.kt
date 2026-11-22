@@ -408,12 +408,21 @@ class RaahatVpnService : VpnService() {
                 }
 
                 val route6 = options.inet6RouteAddress
+                var hasIpv6DefaultRoute = false
                 if (route6.hasNext()) {
                     while (route6.hasNext()) {
                         val prefix = route6.next()
                         builder.addRoute(prefix.address(), prefix.prefix())
+                        if (TunnelRoutePolicy.isIpv6DefaultRoute(prefix.address(), prefix.prefix())) {
+                            hasIpv6DefaultRoute = true
+                        }
                     }
-                } else if (options.inet6Address.hasNext()) {
+                }
+
+                // Raahat currently uses full-tunnel mode. A partial IPv6 route from
+                // the engine must never leave the remaining IPv6 destinations on
+                // Android's physical network. Exclusions are applied below.
+                if (TunnelRoutePolicy.shouldAddIpv6DefaultRoute(options.autoRoute, hasIpv6DefaultRoute)) {
                     builder.addRoute("::", 0)
                 }
 

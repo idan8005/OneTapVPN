@@ -28,9 +28,9 @@ internal data class TunnelHealthReport(
         }
         val ipv6Text = when (ipv6) {
             ProbeStatus.PASSED ->
-                "پاسخ داد؛ این نتیجه به‌تنهایی نبود نشت IPv6 را ثابت نمی‌کند"
+                "پاسخ دریافت شد؛ برای اثبات نبود نشت، آزمون مستقل روی دستگاه لازم است"
             else ->
-                "پاسخ نداد؛ ممکن است سرور IPv6 را پشتیبانی نکند"
+                "پاسخ دریافت نشد؛ ممکن است سرور IPv6 نداشته باشد یا OpenVPN آن را مسدود کرده باشد"
         }
 
         return if (isReady) {
