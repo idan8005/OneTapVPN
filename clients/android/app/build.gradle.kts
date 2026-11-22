@@ -1,19 +1,55 @@
+val releaseKeystorePath = System.getenv("RAAHAT_ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("RAAHAT_ANDROID_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("RAAHAT_ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("RAAHAT_ANDROID_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
 android {
     namespace = "com.raahat.vpn"
     compileSdk = 35
+
     defaultConfig {
         applicationId = "com.raahat.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.3.5-dev"
+        versionCode = 9
+        versionName = "0.3.6-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
     splits {
         abi {
             isEnable = true
@@ -22,17 +58,21 @@ android {
             isUniversalApk = false
         }
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     kotlinOptions { jvmTarget = "17" }
     packaging { jniLibs { useLegacyPackaging = true } }
 }
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
