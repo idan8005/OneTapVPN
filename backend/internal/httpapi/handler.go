@@ -20,7 +20,7 @@ type Handler struct {
 
 type serverListResponse struct {
 	Data  []domain.Server `json:"data"`
-	Count int             `json:"count"`
+	Count int              `json:"count"`
 }
 
 type healthResponse struct {
@@ -29,13 +29,22 @@ type healthResponse struct {
 	Version string `json:"version"`
 }
 
+// NewHandler creates the public, read-only HTTP API. The catalogue contains
+// public server metadata only; no credentials or reusable VPN profiles.
 func NewHandler(catalogue Catalogue) http.Handler {
+	return NewHandlerWithAllowedOrigins(catalogue, "*")
+}
+
+// NewHandlerWithAllowedOrigins enables CORS for a comma-separated list of
+// exact browser origins. "*" is suitable only because these endpoints are
+// public GET-only directory data and never accept credentials.
+func NewHandlerWithAllowedOrigins(catalogue Catalogue, allowedOrigins string) http.Handler {
 	h := &Handler{catalogue: catalogue}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.health)
 	mux.HandleFunc("/api/v1/health", h.health)
 	mux.HandleFunc("/api/v1/servers", h.listServers)
-	return secureHeaders(mux)
+	return secureHeaders(cors(allowedOrigins, mux))
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +80,9 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 		if !server.Enabled || !server.Healthy {
 			continue
 		}
+		if server.Source == "vpn-gate" && server.VerificationLevel != "tcp-reachable" {
+			continue
+		}
 		if tierFilter != "" && string(server.Tier) != tierFilter {
 			continue
 		}
@@ -96,6 +108,47 @@ func (h *Handler) listServers(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, serverListResponse{Data: visible, Count: len(visible)})
+}
+
+func cors(allowedOrigins string, next http.Handler) http.Handler {
+	allowed := make(map[string]struct{})
+	wildcard := false
+	for _, origin := range strings.Split(allowedOrigins, ",") {
+		origin = strings.TrimSpace(strings.TrimRight(origin, "/"))
+		if origin == "*" {
+			wildcard = true
+			break
+		}
+		if origin != "" {
+			allowed[origin] = struct{}{}
+		}
+	}
+	// An empty setting intentionally means no cross-origin browser access.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin != "" {
+			_, exactMatch := allowed[origin]
+			if !wildcard && !exactMatch {
+				writeError(w, http.StatusForbidden, "origin_not_allowed")
+				return
+			}
+			if wildcard {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+			}
+		}
+
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func secureHeaders(next http.Handler) http.Handler {
