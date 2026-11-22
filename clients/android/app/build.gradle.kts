@@ -23,8 +23,8 @@ android {
         applicationId = "com.raahat.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.3.6-dev"
+        versionCode = 10
+        versionName = "0.3.7-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
