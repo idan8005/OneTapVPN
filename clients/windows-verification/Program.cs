@@ -204,8 +204,10 @@ Require(recoveryScript.Contains("Set-NetFirewallProfile", StringComparison.Ordin
         recoveryScript.Contains("Remove-NetFirewallRule", StringComparison.Ordinal) &&
         recoveryScript.Contains("AllowRules", StringComparison.Ordinal) &&
         recoveryScript.Contains("LOCKED_RECOVERY_REQUIRED", StringComparison.Ordinal) &&
-        recoveryScript.Contains("Restore only after", StringComparison.Ordinal),
-    "Kill Switch recovery script does not contain the required rollback operations.");
+        recoveryScript.Contains("Restore only after", StringComparison.Ordinal) &&
+        recoveryScript.Contains("recovery.lock", StringComparison.Ordinal) &&
+        recoveryScript.Contains("[System.IO.FileShare]::None", StringComparison.Ordinal),
+    "Kill Switch recovery script does not contain the required rollback and exclusive-lock operations.");
 
 var testEnginePath = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),

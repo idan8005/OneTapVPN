@@ -25,6 +25,7 @@ public sealed class WindowsKillSwitch : IDisposable
 
     private const string RecoveryFileName = "recovery.ps1";
     private const string StateFileName = "state.json";
+    private const string StateLockFileName = "recovery.lock";
 
     private readonly string _rootDirectory;
     private readonly string _statePath;
@@ -76,25 +77,10 @@ public sealed class WindowsKillSwitch : IDisposable
         if (result.Contains("LOCKED_RECOVERY_REQUIRED", StringComparison.Ordinal) &&
             File.Exists(statePath))
         {
-            var json = await File.ReadAllTextAsync(statePath);
-            var state = JsonSerializer.Deserialize<RecoveryState>(
-                json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ??
-                throw new InvalidOperationException("فایل بازیابی فایروال قابل خواندن نیست.");
-
-            var temporaryPath = statePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                var updated = JsonSerializer.Serialize(
-                    state with { RestoreRequested = true },
-                    new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(temporaryPath, updated, new UTF8Encoding(false));
-                File.Move(temporaryPath, statePath, overwrite: true);
-            }
-            finally
-            {
-                try { File.Delete(temporaryPath); } catch { }
-            }
+            await UpdateStateFileAsync(
+                root,
+                statePath,
+                state => state with { RestoreRequested = true });
 
             result = await RunPowerShellFileAsync(scriptPath, TimeSpan.FromSeconds(25));
         }
@@ -178,8 +164,7 @@ public sealed class WindowsKillSwitch : IDisposable
             return;
         }
 
-        var state = await ReadStateAsync();
-        await WriteStateAsync(state with { RestoreRequested = true });
+        await UpdateStateAsync(state => state with { RestoreRequested = true });
         var result = await RunPowerShellFileAsync(_recoveryScriptPath, TimeSpan.FromSeconds(25));
         if (File.Exists(_statePath))
         {
@@ -196,8 +181,7 @@ public sealed class WindowsKillSwitch : IDisposable
     {
         if (!File.Exists(_statePath))
             return;
-        var state = await ReadStateAsync();
-        await WriteStateAsync(state with { RestoreRequested = true });
+        await UpdateStateAsync(state => state with { RestoreRequested = true });
         await RunPowerShellFileAsync(_recoveryScriptPath, TimeSpan.FromSeconds(25));
         if (File.Exists(_statePath))
             throw new InvalidOperationException("بازیابی فایروال هنوز در صف تکرار خودکار است.");
@@ -350,12 +334,33 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
 
     private async Task WriteStateAsync(RecoveryState state)
     {
-        var temporaryPath = _statePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        await using var stateLock = await AcquireStateLockAsync(_rootDirectory);
+        await WriteStateFileCoreAsync(_statePath, state);
+    }
+
+    private async Task UpdateStateAsync(Func<RecoveryState, RecoveryState> update)
+    {
+        await UpdateStateFileAsync(_rootDirectory, _statePath, update);
+    }
+
+    private static async Task UpdateStateFileAsync(
+        string rootDirectory,
+        string statePath,
+        Func<RecoveryState, RecoveryState> update)
+    {
+        await using var stateLock = await AcquireStateLockAsync(rootDirectory);
+        var current = await ReadStateFileCoreAsync(statePath);
+        await WriteStateFileCoreAsync(statePath, update(current));
+    }
+
+    private static async Task WriteStateFileCoreAsync(string statePath, RecoveryState state)
+    {
+        var temporaryPath = statePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(temporaryPath, json, new UTF8Encoding(false));
-            File.Move(temporaryPath, _statePath, overwrite: true);
+            File.Move(temporaryPath, statePath, overwrite: true);
         }
         finally
         {
@@ -363,13 +368,43 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
         }
     }
 
-    private async Task<RecoveryState> ReadStateAsync()
+    private static async Task<RecoveryState> ReadStateFileCoreAsync(string statePath)
     {
-        var json = await File.ReadAllTextAsync(_statePath);
+        var json = await File.ReadAllTextAsync(statePath);
         return JsonSerializer.Deserialize<RecoveryState>(
                    json,
                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ??
                throw new InvalidOperationException("فایل وضعیت بازیابی فایروال قابل خواندن نیست.");
+    }
+
+    private static async Task<FileStream> AcquireStateLockAsync(string rootDirectory)
+    {
+        Directory.CreateDirectory(rootDirectory);
+        var lockPath = Path.Combine(rootDirectory, StateLockFileName);
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+
+        while (true)
+        {
+            try
+            {
+                return new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None,
+                    1,
+                    FileOptions.Asynchronous);
+            }
+            catch (IOException) when (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(100);
+            }
+            catch (IOException)
+            {
+                throw new InvalidOperationException(
+                    "یک عملیات دیگر در حال بازیابی فایروال است؛ برای جلوگیری از تداخل، این عملیات متوقف شد.");
+            }
+        }
     }
 
     private async Task RegisterRecoveryTaskAsync()
@@ -525,6 +560,25 @@ $ErrorActionPreference = 'Stop'
 $statePath = Join-Path $PSScriptRoot 'state.json'
 $group = 'RaahatVPN Kill Switch'
 $taskName = 'RaahatVPN_KillSwitch_Recovery'
+$lockPath = Join-Path $PSScriptRoot 'recovery.lock'
+$recoveryLock = $null
+$lockDeadline = [DateTime]::UtcNow.AddSeconds(20)
+while ($null -eq $recoveryLock) {
+    try {
+        $recoveryLock = [System.IO.File]::Open(
+            $lockPath,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None)
+    }
+    catch [System.IO.IOException] {
+        if ([DateTime]::UtcNow -ge $lockDeadline) {
+            Write-Error 'Firewall recovery state is busy; retry is required.'
+            exit 2
+        }
+        Start-Sleep -Milliseconds 100
+    }
+}
 try {
     if (-not (Test-Path -LiteralPath $statePath)) {
         Remove-NetFirewallRule -PolicyStore PersistentStore -Group $group -ErrorAction SilentlyContinue | Out-Null
