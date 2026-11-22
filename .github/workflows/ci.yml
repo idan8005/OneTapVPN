@@ -103,15 +103,56 @@ jobs:
           if-no-files-found: error
 
   windows:
-    name: Windows client build
+    name: Windows client build and tunnel validation
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
-      - name: Build Windows client
-        run: dotnet publish clients/windows/RaahatVPN.csproj -c Release -r win-x64 --self-contained true -o artifacts/windows
+      - name: Download and verify official sing-box Windows core
+        shell: pwsh
+        run: |
+          $version = "1.14.4"
+          $url = "https://github.com/SagerNet/sing-box/releases/download/v$version/sing-box-$version-windows-amd64.zip"
+          $expected = "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df"
+          $archive = Join-Path $env:RUNNER_TEMP "sing-box-windows-amd64.zip"
+          $extract = Join-Path $env:RUNNER_TEMP "sing-box-windows-amd64"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Official sing-box archive checksum mismatch."
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $extract -Force
+          $engine = Get-ChildItem -LiteralPath $extract -Filter "sing-box.exe" -File -Recurse | Select-Object -First 1
+          if (-not $engine) {
+            throw "sing-box.exe was not present in the verified official archive."
+          }
+          $coreDirectory = Join-Path $env:GITHUB_WORKSPACE "artifacts/windows/Core"
+          New-Item -ItemType Directory -Path $coreDirectory -Force | Out-Null
+          Copy-Item -LiteralPath $engine.FullName -Destination (Join-Path $coreDirectory "sing-box.exe")
+          $noticeDirectory = Join-Path $env:GITHUB_WORKSPACE "artifacts/windows/licenses"
+          New-Item -ItemType Directory -Path $noticeDirectory -Force | Out-Null
+          Copy-Item -LiteralPath "licenses/sing-box-1.14.4-NOTICE.txt" -Destination $noticeDirectory
+          & (Join-Path $coreDirectory "sing-box.exe") version
+      - name: Test profile parser and generated VPN configuration
+        shell: pwsh
+        run: |
+          $enginePath = Join-Path $env:GITHUB_WORKSPACE "artifacts/windows/Core/sing-box.exe"
+          dotnet run --configuration Release --project clients/windows-verification/RaahatVPN.Verification.csproj -- "$enginePath"
+      - name: Publish self-contained Windows client
+        shell: pwsh
+        run: |
+          $publishDirectory = Join-Path $env:RUNNER_TEMP "raahat-windows-publish"
+          dotnet publish clients/windows/RaahatVPN.csproj -c Release -r win-x64 --self-contained true -o $publishDirectory
+          New-Item -ItemType Directory -Path "artifacts/windows" -Force | Out-Null
+          Copy-Item -Path "$publishDirectory\*" -Destination "artifacts/windows" -Recurse -Force
+          if (-not (Test-Path "artifacts/windows/RaahatVPN.exe")) {
+            throw "Windows application executable was not published."
+          }
+          if (-not (Test-Path "artifacts/windows/Core/sing-box.exe")) {
+            throw "The verified VPN engine is missing from the Windows package."
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: RaahatVPN-Windows-x64
