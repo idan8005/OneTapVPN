@@ -13,6 +13,7 @@ Updated: 2026-11-22
 - TCP profiles are filtered by a bounded TCP connect probe. UDP profiles are not misrepresented as TCP-probed; their actual health is determined by the OpenVPN handshake and HTTPS traffic check.
 - Android UI shows source country, protocol and reachability-test details.
 - The fastest candidates are tried automatically; after a tunnel or HTTPS verification failure, up to three candidates are attempted before reporting failure.
+- Relays that fail a real connection attempt are locally hidden and excluded from automatic selection for a 15-minute cooldown; only a stable server ID and timestamp are persisted.
 - The complete sing-box configuration is checked by libbox before starting the tunnel.
 - The app only reports Connected after independent HTTPS traffic verification.
 - Profiles and VPN Gate public credentials remain in memory and are not written to server-list API responses or logs.

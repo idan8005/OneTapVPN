@@ -17,6 +17,7 @@ The Android app retrieves the public CSV directly over HTTPS, so the user does n
 - Ranks candidates using source-reported latency and quality, then automatically tries up to three.
 - Passes each selected profile to sing-box's OpenVPN Client endpoint and validates the generated config with libbox before starting the VPN tunnel.
 - Verifies independent HTTPS traffic before the app reports Connected.
+- Remembers only the stable relay ID and failure timestamp locally; a relay that fails the real connection check is hidden and excluded from automatic selection for 15 minutes, then becomes eligible for a fresh check.
 
 The full profile and the VPN Gate public username/password are held in memory only. They are not saved to disk or sent to the metadata API. The public API never returns raw profiles or credentials.
 

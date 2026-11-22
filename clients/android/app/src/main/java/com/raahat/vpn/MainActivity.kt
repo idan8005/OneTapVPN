@@ -62,6 +62,10 @@ class MainActivity : ComponentActivity() {
     private var automaticRetry = false
     private var retryServers: List<FreeServer> = emptyList()
     private var retryIndex = 0
+    private var activeFreeServer: FreeServer? = null
+    private val healthPreferences by lazy {
+        getSharedPreferences("raahat_server_health", Context.MODE_PRIVATE)
+    }
 
     private val vpnPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -70,6 +74,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 automaticRetry = false
                 retryServers = emptyList()
+                activeFreeServer = null
                 currentState = ConnectionState.DISCONNECTED
                 currentMessage = "مجوز اتصال VPN داده نشد."
             }
@@ -86,12 +91,19 @@ class MainActivity : ComponentActivity() {
 
             when (state) {
                 ConnectionState.CONNECTED -> {
+                    activeFreeServer?.let(::markServerHealthy)
+                    activeFreeServer = null
                     automaticRetry = false
                     retryServers = emptyList()
                     currentMessage = "اتصال برقرار شد."
                 }
-                ConnectionState.FAILED -> tryNextFreeServer()
+                ConnectionState.FAILED -> {
+                    activeFreeServer?.let(::markServerFailed)
+                    activeFreeServer = null
+                    tryNextFreeServer()
+                }
                 ConnectionState.DISCONNECTED -> {
+                    activeFreeServer = null
                     if (automaticRetry) {
                         automaticRetry = false
                         retryServers = emptyList()
@@ -119,6 +131,7 @@ class MainActivity : ComponentActivity() {
                     onDisconnect = {
                         automaticRetry = false
                         retryServers = emptyList()
+                        activeFreeServer = null
                         RaahatVpnService.stop(this)
                     }
                 )
@@ -165,6 +178,7 @@ class MainActivity : ComponentActivity() {
             val profile = VlessRealityProfile.parse(link)
             automaticRetry = false
             retryServers = emptyList()
+            activeFreeServer = null
             requestTunnelStart(profile.toSingBoxConfig())
             true
         } catch (error: IllegalArgumentException) {
@@ -189,6 +203,7 @@ class MainActivity : ComponentActivity() {
         currentMessage = "در حال جست‌وجوی سرور رایگان پاسخ‌گو…"
         automaticRetry = false
         retryServers = emptyList()
+        activeFreeServer = null
 
         backgroundExecutor.execute {
             val result = runCatching { VPNGateClient().discover() }
@@ -196,17 +211,27 @@ class MainActivity : ComponentActivity() {
                 if (isFinishing || isDestroyed) return@post
                 scanning = false
                 result.onSuccess { servers ->
-                    freeServers = servers
-                    scanMessage = "${servers.size} کاندید سرور رایگان پیدا شد؛ TCP پورت‌سنجی شده و UDP هنگام اتصال واقعی آزمایش می‌شود."
-                    retryServers = servers.take(MAX_AUTOMATIC_ATTEMPTS)
+                    val availableServers = servers.filterNot { isServerCoolingDown(it.id) }
+                    val coolingDownCount = servers.size - availableServers.size
+                    freeServers = availableServers
+                    scanMessage = "${availableServers.size} سرور آماده؛ TCP پورت‌سنجی شده و UDP هنگام اتصال واقعی آزمایش می‌شود."
+                    if (coolingDownCount > 0) {
+                        scanMessage += " ${coolingDownCount} سرور که اخیراً اتصال واقعی‌شان ناموفق بوده، موقتاً کنار گذاشته شدند."
+                    }
+                    retryServers = availableServers.take(MAX_AUTOMATIC_ATTEMPTS)
                     retryIndex = 0
                     automaticRetry = retryServers.isNotEmpty()
                     if (retryServers.isEmpty()) {
-                        scanMessage = "سرور قابل استفاده‌ای پیدا نشد. بعداً دوباره تلاش کنید."
+                        scanMessage = if (coolingDownCount > 0) {
+                            "همه سرورهای پیدا‌شده در ۱۵ دقیقه اخیر ناموفق بوده‌اند؛ برای جلوگیری از تکرار اتصال ناموفق، موقتاً کنار گذاشته شدند. بعداً دوباره جست‌وجو کنید."
+                        } else {
+                            "سرور قابل استفاده‌ای پیدا نشد. بعداً دوباره تلاش کنید."
+                        }
                         currentState = ConnectionState.FAILED
                         currentMessage = scanMessage
                         return@post
                     }
+                    activeFreeServer = retryServers.first()
                     currentMessage = "در حال اتصال خودکار به سریع‌ترین سرور…"
                     requestTunnelStart(retryServers.first().profile.toSingBoxConfig())
                 }.onFailure { error ->
@@ -223,6 +248,7 @@ class MainActivity : ComponentActivity() {
     private fun connectSelectedFreeServer(server: FreeServer) {
         automaticRetry = false
         retryServers = emptyList()
+        activeFreeServer = server
         requestTunnelStart(server.profile.toSingBoxConfig())
     }
 
@@ -232,12 +258,14 @@ class MainActivity : ComponentActivity() {
         if (nextIndex >= retryServers.size) {
             automaticRetry = false
             retryServers = emptyList()
-            currentMessage = "اتصال به سرورهای آزمایش‌شده ناموفق بود. بعداً دوباره جست‌وجو کنید."
+            activeFreeServer = null
+            currentMessage = "اتصال به سرورهای آزمایش‌شده ناموفق بود. سرورهای ناموفق تا ۱۵ دقیقه از انتخاب خودکار کنار گذاشته شدند؛ بعداً دوباره جست‌وجو کنید."
             return
         }
 
         retryIndex = nextIndex
         val nextServer = retryServers[nextIndex]
+        activeFreeServer = nextServer
         currentState = ConnectionState.CONNECTING
         currentMessage = "سرور قبلی پاسخ اتصال نداد؛ در حال آزمایش سرور بعدی…"
         mainHandler.postDelayed({
@@ -245,6 +273,29 @@ class MainActivity : ComponentActivity() {
                 requestTunnelStart(nextServer.profile.toSingBoxConfig())
             }
         }, RETRY_DELAY_MS)
+    }
+
+    private fun isServerCoolingDown(serverId: String): Boolean {
+        val key = "failed_at_$serverId"
+        val failedAt = healthPreferences.getLong(key, 0L)
+        if (failedAt <= 0L) return false
+
+        val coolingDown = ServerHealthPolicy.isCoolingDown(failedAt, System.currentTimeMillis())
+        if (!coolingDown) {
+            healthPreferences.edit().remove(key).apply()
+        }
+        return coolingDown
+    }
+
+    private fun markServerFailed(server: FreeServer) {
+        healthPreferences.edit()
+            .putLong("failed_at_${server.id}", System.currentTimeMillis())
+            .apply()
+        freeServers = freeServers.filterNot { it.id == server.id }
+    }
+
+    private fun markServerHealthy(server: FreeServer) {
+        healthPreferences.edit().remove("failed_at_${server.id}").apply()
     }
 
     private fun requestTunnelStart(config: String) {
