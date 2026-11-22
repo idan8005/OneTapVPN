@@ -26,3 +26,5 @@ secrets/
 *.pem
 *.key
 *.crt
+*.mobileprovision
+*.xcarchive/
