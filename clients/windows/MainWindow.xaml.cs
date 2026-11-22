@@ -21,12 +21,12 @@ public partial class MainWindow : Window
         DisconnectButton.IsEnabled = false;
         StatusTextBlock.Text = "در حال راه‌اندازی تونل...";
         StatusTextBlock.Foreground = Brushes.White;
-        StatusDetailTextBlock.Text = "لینک بررسی می‌شود، سپس پیکربندی موتور اعتبارسنجی خواهد شد.";
+        StatusDetailTextBlock.Text = "لینک‌ها به‌ترتیب بررسی می‌شوند؛ فقط خروجی IPv4 تأییدشده پذیرفته می‌شود.";
         ExitIpTextBlock.Text = string.Empty;
 
         try
         {
-            var result = await _tunnel.ConnectAsync(ServerLinkTextBox.Text);
+            var result = await _tunnel.ConnectBestAsync(ServerLinkTextBox.Text);
             StatusTextBlock.Text = result.EgressVerified
                 ? "خروجی VPN تأیید شد"
                 : "تونل فعال؛ اتصال تأییدنشده";

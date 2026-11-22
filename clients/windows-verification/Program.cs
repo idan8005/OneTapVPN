@@ -20,6 +20,19 @@ static void MustReject(string link, string label)
     }
 }
 
+static void MustRejectCandidateList(string input, string label)
+{
+    try
+    {
+        _ = VlessCandidateList.Parse(input);
+        throw new InvalidOperationException($"Candidate list accepted invalid test input: {label}");
+    }
+    catch (FormatException)
+    {
+        // Expected.
+    }
+}
+
 if (args.Length != 1 || !File.Exists(args[0]))
 {
     Console.Error.WriteLine("Usage: RaahatVPN.Verification <path-to-sing-box.exe>");
@@ -31,6 +44,19 @@ const string validLink =
     "?security=reality&type=tcp" +
     "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
     "&sid=0123456789abcdef&sni=example.com&fp=chrome#Test%20Relay";
+
+var candidateList = VlessCandidateList.Parse(
+    $"# Raahat backup list{Environment.NewLine}{validLink}{Environment.NewLine}{validLink}{Environment.NewLine}" +
+    validLink.Replace("example.com", "backup.example.com", StringComparison.Ordinal));
+Require(candidateList.Count == 2, "Backup link list did not remove duplicate entries.");
+Require(candidateList[0] == validLink, "Backup link order was not preserved.");
+Require(candidateList[1].Contains("backup.example.com", StringComparison.Ordinal),
+    "Second backup link was not preserved.");
+MustRejectCandidateList("https://example.com", "non-VLESS candidate");
+MustRejectCandidateList(
+    string.Join(Environment.NewLine, Enumerable.Range(0, VlessCandidateList.MaximumCandidates + 1)
+        .Select(index => validLink.Replace("example.com", $"relay-{index}.example.com", StringComparison.Ordinal))),
+    "more than five candidate links");
 
 var profile = VlessRealityProfile.Parse(validLink);
 Require(profile.Server == "example.com", "Server hostname parsing failed.");
@@ -107,6 +133,7 @@ finally
 }
 
 Console.WriteLine("Windows VLESS Reality parsing tests: PASS");
+Console.WriteLine("Windows backup candidate-list parsing and limits: PASS");
 Console.WriteLine("Generated Full Tunnel + strict routing + DoH config: PASS");
 Console.WriteLine("Pinned sing-box configuration validation: PASS");
 return 0;
