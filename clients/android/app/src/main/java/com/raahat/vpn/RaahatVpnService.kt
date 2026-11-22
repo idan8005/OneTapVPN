@@ -47,11 +47,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 class RaahatVpnService : VpnService() {
     companion object {
         const val ACTION_STATE = "com.raahat.vpn.STATE"
+        const val ACTION_SECURITY_STATUS = "com.raahat.vpn.SECURITY_STATUS"
         const val EXTRA_STATE = "state"
         const val EXTRA_MESSAGE = "message"
+        const val EXTRA_SECURITY_STATUS_SUPPORTED = "security_status_supported"
+        const val EXTRA_ALWAYS_ON = "always_on_enabled"
+        const val EXTRA_LOCKDOWN = "lockdown_enabled"
 
         private const val ACTION_START = "com.raahat.vpn.START"
         private const val ACTION_STOP = "com.raahat.vpn.STOP"
+        private const val ACTION_QUERY_SECURITY_STATUS = "com.raahat.vpn.QUERY_SECURITY_STATUS"
         private const val EXTRA_CONFIG = "config"
         private const val CHANNEL_ID = "raahat-vpn-connection"
         private const val NOTIFICATION_ID = 4101
@@ -76,6 +81,12 @@ class RaahatVpnService : VpnService() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, RaahatVpnService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun requestSecurityStatus(context: Context) {
+            context.startService(
+                Intent(context, RaahatVpnService::class.java).setAction(ACTION_QUERY_SECURITY_STATUS)
+            )
         }
 
         private fun saveState(context: Context, state: ConnectionState, message: String? = null) {
@@ -104,6 +115,21 @@ class RaahatVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_QUERY_SECURITY_STATUS -> {
+                val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                val alwaysOn = supported && isAlwaysOn
+                val lockdown = supported && isLockdownEnabled
+                sendBroadcast(
+                    Intent(ACTION_SECURITY_STATUS)
+                        .setPackage(packageName)
+                        .putExtra(EXTRA_SECURITY_STATUS_SUPPORTED, supported)
+                        .putExtra(EXTRA_ALWAYS_ON, alwaysOn)
+                        .putExtra(EXTRA_LOCKDOWN, lockdown)
+                )
+                val tunnelActive = !engineStopped.get()
+                if (!tunnelActive) stopSelf(startId)
+                return if (tunnelActive) Service.START_STICKY else Service.START_NOT_STICKY
+            }
             ACTION_STOP -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                     (isAlwaysOn || isLockdownEnabled)
