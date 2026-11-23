@@ -183,6 +183,12 @@ public sealed record VlessRealityProfile(
             },
             ["route"] = new JsonObject
             {
+                // dns_address is explicit on this TUN, so sing-box requires an
+                // explicit hijack-dns route action (it is not auto-inserted).
+                ["rules"] = new JsonArray
+                {
+                    new JsonObject { ["action"] = "hijack-dns" }
+                },
                 ["auto_detect_interface"] = true,
                 ["final"] = "proxy"
             }
