@@ -180,8 +180,16 @@ using (var document = JsonDocument.Parse(json))
         "Full Tunnel auto_route was not enabled.");
     Require(root.GetProperty("inbounds")[0].GetProperty("strict_route").GetBoolean(),
         "Strict route was not enabled.");
-    Require(root.GetProperty("dns").GetProperty("servers")[0].GetProperty("type").GetString() == "https",
-        "Encrypted DNS over HTTPS was not configured.");
+    var dnsServer = root.GetProperty("dns").GetProperty("servers")[0];
+    Require(dnsServer.GetProperty("type").GetString() == "https" &&
+            dnsServer.GetProperty("detour").GetString() == "proxy",
+        "Encrypted DNS over HTTPS was not configured to travel through the VPN proxy.");
+    Require(root.GetProperty("inbounds")[0].GetProperty("dns_mode").GetString() == "hijack",
+        "TUN DNS hijacking mode was not enabled.");
+    Require(root.GetProperty("inbounds")[0].GetProperty("dns_address")[0].GetString() == "172.19.0.2",
+        "The TUN DNS address was not configured.");
+    Require(root.GetProperty("route").GetProperty("rules")[0].GetProperty("action").GetString() == "hijack-dns",
+        "DNS requests are not explicitly handed to the sing-box DNS module.");
     Require(root.GetProperty("route").GetProperty("final").GetString() == "proxy",
         "Full Tunnel final route was not set to the proxy.");
     Require(root.GetProperty("inbounds")[0].GetProperty("interface_name").GetString() == WindowsKillSwitch.TunnelInterfaceAlias,
