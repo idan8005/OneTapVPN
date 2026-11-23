@@ -23,9 +23,20 @@ data class VlessRealityProfile(
               "log": { "level": "warn", "timestamp": true },
               "dns": {
                 "servers": [
-                  { "type": "udp", "tag": "dns-remote", "server": "1.1.1.1", "server_port": 53 }
+                  {
+                    "type": "https",
+                    "tag": "raahat-doh",
+                    "server": "1.1.1.1",
+                    "server_port": 443,
+                    "path": "/dns-query",
+                    "tls": {
+                      "enabled": true,
+                      "server_name": "cloudflare-dns.com"
+                    },
+                    "detour": "proxy"
+                  }
                 ],
-                "final": "dns-remote",
+                "final": "raahat-doh",
                 "strategy": "prefer_ipv4"
               },
               "inbounds": [
@@ -61,6 +72,9 @@ data class VlessRealityProfile(
                 { "type": "block", "tag": "block" }
               ],
               "route": {
+                "rules": [
+                  { "action": "hijack-dns" }
+                ],
                 "auto_detect_interface": true,
                 "final": "proxy"
               }
