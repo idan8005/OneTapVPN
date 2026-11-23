@@ -122,7 +122,7 @@
             </Border>
 
             <TextBlock Grid.Row="6"
-                       Text="نسخه 0.2.3-dev  ·  موتور sing-box 1.14.4"
+                       Text="نسخه 0.2.5-dev  ·  موتور sing-box 1.14.4"
                        Foreground="#8496AD"
                        Margin="0,22,0,8"
                        HorizontalAlignment="Center" />
