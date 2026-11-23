@@ -44,7 +44,7 @@ public sealed class PublicVlessFeedClient : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(8)
         };
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("RaahatVPN/0.2.2");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("RaahatVPN/0.2.5");
     }
 
     public async Task<IReadOnlyList<string>> FetchCandidatesAsync(
