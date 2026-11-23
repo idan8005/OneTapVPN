@@ -205,6 +205,11 @@ Require(recoveryScript.Contains("Set-NetFirewallProfile", StringComparison.Ordin
         recoveryScript.Contains("AllowRules", StringComparison.Ordinal) &&
         recoveryScript.Contains("LOCKED_RECOVERY_REQUIRED", StringComparison.Ordinal) &&
         recoveryScript.Contains("Restore only after", StringComparison.Ordinal) &&
+        recoveryScript.Contains("OwnerStartTimeUtcTicks", StringComparison.Ordinal) &&
+        recoveryScript.Contains("Get-Process -Id", StringComparison.Ordinal) &&
+        recoveryScript.Contains(".StartTime.ToUniversalTime().Ticks", StringComparison.Ordinal) &&
+        recoveryScript.Contains("actualStartTicks -eq $expectedStartTicks", StringComparison.Ordinal) &&
+        recoveryScript.Contains("Backward compatibility for a state file created by an older app build", StringComparison.Ordinal) &&
         recoveryScript.Contains("recovery.lock", StringComparison.Ordinal) &&
         recoveryScript.Contains("[System.IO.FileShare]::None", StringComparison.Ordinal),
     "Kill Switch recovery script does not contain the required rollback and exclusive-lock operations.");
@@ -273,6 +278,6 @@ Console.WriteLine("Windows backup candidate-list parsing and limits: PASS");
 Console.WriteLine("Public feed filtering, compatibility checks and candidate limit: PASS");
 Console.WriteLine("Generated Full Tunnel + strict routing + DoH config: PASS");
 Console.WriteLine("Pinned VPN server endpoint and preserved SNI: PASS");
-Console.WriteLine("Kill Switch firewall lock, endpoint rules and crash-recovery scripts: PASS");
+Console.WriteLine("Kill Switch firewall lock, endpoint rules, process-identity checks and crash-recovery scripts: PASS");
 Console.WriteLine("Pinned sing-box configuration validation: PASS");
 return 0;
