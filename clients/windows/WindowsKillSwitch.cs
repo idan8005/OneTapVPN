@@ -130,12 +130,15 @@ public sealed class WindowsKillSwitch : IDisposable
             Process.GetCurrentProcess().MainModule?.FileName ??
             throw new InvalidOperationException("مسیر فایل اجرایی راحت وی‌پی‌ان مشخص نشد.");
 
+        using var currentProcess = Process.GetCurrentProcess();
+        var ownerStartTimeUtcTicks = currentProcess.StartTime.ToUniversalTime().Ticks;
         var state = new RecoveryState(
             Environment.ProcessId,
             Path.GetFullPath(ownerExecutable),
             RestoreRequested: false,
             snapshot.Profiles,
-            snapshot.AllowRules);
+            snapshot.AllowRules,
+            OwnerStartTimeUtcTicks: ownerStartTimeUtcTicks);
 
         await CreateStateIfAbsentAsync(state);
         _ownsState = true;
@@ -567,7 +570,8 @@ Write-Output ('RAAHAT_SNAPSHOT:' + (ConvertTo-Json -InputObject $payload -Depth 
         string OwnerExecutable,
         bool RestoreRequested,
         FirewallProfileState[] Profiles,
-        FirewallRuleState[] AllowRules);
+        FirewallRuleState[] AllowRules,
+        long OwnerStartTimeUtcTicks = 0);
 
     private const string RecoveryScript = """
 $ErrorActionPreference = 'Stop'
@@ -607,7 +611,26 @@ try {
         $owner = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$state.OwnerPid)" -ErrorAction SilentlyContinue
         if ($owner -and $owner.ExecutablePath -and
             [string]::Equals([string]$owner.ExecutablePath, [string]$state.OwnerExecutable, [StringComparison]::OrdinalIgnoreCase)) {
-            $ownerAlive = $true
+            $expectedStartTicks = [long]$state.OwnerStartTimeUtcTicks
+            if ($expectedStartTicks -le 0) {
+                # Backward compatibility for a state file created by an older app build.
+                $ownerAlive = $true
+            } else {
+                # A PID and executable path are not a unique process identity: Windows can
+                # reuse a PID for a later instance of the same executable. Compare the
+                # kernel process creation time before treating this as the owning instance.
+                $ownerProcess = Get-Process -Id ([int]$state.OwnerPid) -ErrorAction SilentlyContinue
+                if ($ownerProcess) {
+                    try {
+                        $actualStartTicks = [long]$ownerProcess.StartTime.ToUniversalTime().Ticks
+                        $ownerAlive = ($actualStartTicks -eq $expectedStartTicks)
+                    }
+                    catch {
+                        # If identity cannot be proven, fail closed and keep outbound blocked.
+                        $ownerAlive = $false
+                    }
+                }
+            }
         }
     }
 
